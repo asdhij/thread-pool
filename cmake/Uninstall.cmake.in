@@ -1,0 +1,60 @@
+# Copyright (c) 2025 asdhij (169761929+asdhij@users.noreply.github.com)
+# SPDX-License-Identifier: Apache-2.0
+
+# Uninstall.cmake.in - Uninstallation script template
+
+# Check if install manifest exists
+if(NOT EXISTS "@CMAKE_BINARY_DIR@/install_manifest.txt")
+  message(FATAL_ERROR
+    "Uninstallation Error: Install manifest not found\n\n"
+    "  Cannot find install manifest: @CMAKE_BINARY_DIR@/install_manifest.txt\n\n"
+    "  This may indicate that:\n"
+    "  1. The package was not installed using CMake's install mechanism\n"
+    "  2. The build directory has been deleted or moved"
+  )
+endif()
+
+# Read and process installed files list
+file(STRINGS "@CMAKE_BINARY_DIR@/install_manifest.txt" files)
+
+# Remove each installed file
+foreach(file ${files})
+  set(full_path "$ENV{DESTDIR}${file}")
+  if(IS_SYMLINK "${full_path}" OR EXISTS "${full_path}")
+    message(STATUS "Removing: ${full_path}")
+    execute_process(
+      COMMAND "@CMAKE_COMMAND@" -E remove "${full_path}"
+      ERROR_VARIABLE rm_err
+      RESULT_VARIABLE rm_retval
+    )
+    if(NOT "${rm_retval}" STREQUAL 0)
+      message(WARNING "Failed to remove ${full_path}: ${rm_err}")
+    endif()
+  else()
+    message(WARNING "File not found (already removed?): ${full_path}")
+  endif()
+endforeach()
+
+# Function to remove directory if empty
+function(rmdir_if_empty dir)
+  file(GLOB_RECURSE ALL_FILES LIST_DIRECTORIES false "${dir}/*")
+  if(ALL_FILES STREQUAL "")
+    message(STATUS "Removing empty directory: ${dir}")
+    execute_process(
+      COMMAND "@CMAKE_COMMAND@" -E remove_directory "${dir}"
+      ERROR_VARIABLE rm_err
+      RESULT_VARIABLE rm_retval
+    )
+    if(NOT "${rm_retval}" STREQUAL 0)
+      message(WARNING "Failed to remove directory ${dir}: ${rm_err}")
+    endif()
+  else()
+    message(WARNING "Directory not empty - preserving: ${dir}")
+  endif()
+endfunction()
+
+# Remove project-specific directories if empty
+rmdir_if_empty("@CMAKE_INSTALL_FULL_INCLUDEDIR@/@PROJECT_NAME@")
+rmdir_if_empty("@CMAKE_INSTALL_FULL_DATAROOTDIR@/cmake/@PROJECT_NAME@")
+
+message(STATUS "Uninstallation of @PROJECT_NAME@ completed")

@@ -1,0 +1,81 @@
+# Copyright (c) 2025 asdhij (169761929+asdhij@users.noreply.github.com)
+# SPDX-License-Identifier: Apache-2.0
+
+# Config.cmake.in - Package configuration template
+cmake_minimum_required(VERSION @CMAKE_MINIMUM_REQUIRED_VERSION@)
+@PACKAGE_INIT@
+
+# Error if components are requested (this package doesn't support components)
+if(DEFINED @PROJECT_NAME@_FIND_COMPONENTS AND NOT "${@PROJECT_NAME@_FIND_COMPONENTS}" STREQUAL "")
+  message(FATAL_ERROR
+    "The @PROJECT_NAME@ package does not support components. "
+    "Please use find_package(@PROJECT_NAME@) without specifying components. "
+    "Requested components: ${@PROJECT_NAME@_FIND_COMPONENTS}"
+  )
+endif()
+
+# Check which targets are already defined
+set(DEFINED_TARGETS "")
+set(UNDEFINED_TARGETS "")
+foreach(TARGET_NAME @PROJECT_TARGETS@)
+  if(TARGET ${TARGET_NAME})
+    list(APPEND DEFINED_TARGETS ${TARGET_NAME})
+  else()
+    list(APPEND UNDEFINED_TARGETS ${TARGET_NAME})
+  endif()
+endforeach()
+
+# Handle inconsistent target state
+if(DEFINED_TARGETS)
+  if(UNDEFINED_TARGETS)
+    message(FATAL_ERROR
+      "Inconsistent target state detected:\n"
+      "  Some targets from @PROJECT_NAME@ were already defined:\n"
+      "      ${DEFINED_TARGETS}\n\n"
+      "  But others could not be found:\n"
+      "      ${UNDEFINED_TARGETS}\n\n"
+      "  This usually indicates that:\n"
+      "  1. You have multiple versions of @PROJECT_NAME@ installed, or\n"
+      "  2. Another package is defining conflicting target names\n\n"
+      "  Possible solutions:\n"
+      "  - Check your CMake configuration for duplicate find_package() calls\n"
+      "  - Ensure you have only one version of @PROJECT_NAME@ installed\n"
+      "  - Clean your build directory and reconfigure"
+    )
+  else()
+    return()
+  endif()
+endif()
+
+message(STATUS "Found @PROJECT_NAME@: ${CMAKE_CURRENT_LIST_FILE} (found version \"@PROJECT_VERSION@\")")
+if(NOT EXISTS "@CMAKE_INSTALL_FULL_INCLUDEDIR@/@PROJECT_NAME@")
+  message(FATAL_ERROR
+    "Installation Error: @PROJECT_NAME@ headers not found:\n"
+    "  Modules not found at:\n"
+    "      @CMAKE_INSTALL_FULL_INCLUDEDIR@/@PROJECT_NAME@\n\n"
+    "  This may indicate:\n"
+    "  1. An incomplete installation of @PROJECT_NAME@\n"
+    "  2. The package was moved or deleted after installation\n"
+    "  3. An incorrect CMAKE_INSTALL_PREFIX was used during installation\n\n"
+    "  Please reinstall @PROJECT_NAME@ or verify CMAKE_INSTALL_PREFIX."
+  )
+endif()
+
+if(NOT DEFINED CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD @CMAKE_CXX_STANDARD@)
+  set(CMAKE_CXX_STANDARD_REQUIRED @CMAKE_CXX_STANDARD_REQUIRED@)
+  message(STATUS "Setting CMAKE_CXX_STANDARD to @CMAKE_CXX_STANDARD@ for @PROJECT_NAME@")
+elseif(CMAKE_CXX_STANDARD LESS @CMAKE_CXX_STANDARD@)
+  message(FATAL_ERROR
+    "@PROJECT_NAME@ requires C++@CMAKE_CXX_STANDARD@ or later, "
+    "but CMAKE_CXX_STANDARD is set to ${CMAKE_CXX_STANDARD}. "
+    "This will cause compilation errors. "
+    "Consider setting CMAKE_CXX_STANDARD to at least @CMAKE_CXX_STANDARD@"
+  )
+endif()
+set(CMAKE_CXX_SCAN_FOR_MODULES @CMAKE_CXX_SCAN_FOR_MODULES@)
+
+# Add the library subdirectory
+add_subdirectory(@CMAKE_INSTALL_FULL_INCLUDEDIR@/@PROJECT_NAME@ ${CMAKE_CURRENT_BINARY_DIR}/@PROJECT_NAME@ EXCLUDE_FROM_ALL)
+
+check_required_components("@PROJECT_NAME@")
