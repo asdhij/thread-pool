@@ -30,6 +30,20 @@
   constexpr explicit ThreadPool(Queue &&...args) noexcept(/*noex*/);
   ```
 
+- Construct with separate argument tuples for `TaskQueue`, `Policy`, and `ThreadAllocator` (in that order).
+  ```cpp
+  template <tuple_like QueueArgs, tuple_like PolicyArgs = std::tuple<>, tuple_like ThreadAllocatorArgs = std::tuple<>>
+    requires can_make_from_tuple<TaskQueue, QueueArgs> && can_make_from_tuple<Policy, PolicyArgs> && can_make_from_tuple<ThreadAllocator, ThreadAllocatorArgs>
+  constexpr explicit ThreadPool(QueueArgs &&queue_args, PolicyArgs &&policy_args = std::tuple{}, ThreadAllocatorArgs &&thread_allocator_args = std::tuple{}) noexcept(/*noex*/);
+  ```
+
+- Construct with default arguments.
+  ```cpp
+  constexpr ThreadPool() noexcept(std::is_nothrow_default_constructible_v<Policy> && std::is_nothrow_default_constructible_v<TaskQueue> && std::is_nothrow_default_constructible_v<ThreadAllocator>)
+    requires(std::is_default_constructible_v<Policy> && std::is_default_constructible_v<TaskQueue> && std::is_default_constructible_v<ThreadAllocator>) = default;
+  ```
+  It only participates in overload resolution if all three template parameters are default constructible.
+
 ## Primary methods
 - Submit one or more tasks.
   ```cpp

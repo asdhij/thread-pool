@@ -27,6 +27,7 @@ import thread_pool.task;
 #include <stop_token>
 #include <system_error>
 #include <thread>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -62,6 +63,23 @@ concept allocator = requires(Alloc alloc, std::size_t n, typename std::allocator
   std::allocator_traits<Alloc>::destroy(alloc, ptr);
 };
 
+template<typename T, typename = void>
+struct has_tuple_size : std::false_type {};
+
+template<typename T>
+struct has_tuple_size<T, std::void_t<decltype(std::tuple_size<T>::value)>> : std::true_type {};
+
+template<typename T>
+concept tuple_like = has_tuple_size<std::remove_reference_t<T>>::value && (std::tuple_size<std::remove_reference_t<T>>::value == 0 || requires (T t) {
+  std::get<0>(std::forward<T>(t));
+});
+
+template <typename T, typename Tuple>
+concept can_make_from_tuple = tuple_like<Tuple> && requires (Tuple tuple) { std::make_from_tuple<T>(std::forward<Tuple>(tuple)); };
+
+template <typename T, typename Tuple>
+concept can_nothrow_make_from_tuple = tuple_like<Tuple> && requires (Tuple tuple) { { std::make_from_tuple<T>(std::forward<Tuple>(tuple)) } noexcept; };
+
 /**
  * @brief Thread pool class template for managing and executing tasks concurrently.
  * @tparam Task The task type to be executed by the thread pool, should satisfy thread_pool::task concept.
@@ -92,6 +110,26 @@ class ThreadPool {
    */
   template <typename... Queue> requires std::constructible_from<TaskQueue, Queue...> && std::is_default_constructible_v<Policy>
   constexpr explicit ThreadPool(Queue &&...args) noexcept(std::is_nothrow_default_constructible_v<Policy> && std::is_nothrow_constructible_v<TaskQueue, Queue...>) : tasks_{std::forward<Queue>(args)...} {}
+
+  /**
+   * @brief Constructs a ThreadPool with custom task queue, policy, and thread allocator arguments.
+   * @tparam QueueArgs The types of arguments to construct the task queue.
+   * @tparam PolicyArgs The types of arguments to construct the policy.
+   * @tparam ThreadAllocatorArgs The types of arguments to construct the thread allocator.
+   * @param queue_args The arguments to construct the task queue.
+   * @param policy_args The arguments to construct the policy.
+   * @param thread_allocator_args The arguments to construct the thread allocator.
+   */
+  template <tuple_like QueueArgs, tuple_like PolicyArgs = std::tuple<>, tuple_like ThreadAllocatorArgs = std::tuple<>>
+    requires can_make_from_tuple<TaskQueue, QueueArgs> && can_make_from_tuple<Policy, PolicyArgs> && can_make_from_tuple<ThreadAllocator, ThreadAllocatorArgs>
+  constexpr explicit ThreadPool(QueueArgs &&queue_args, PolicyArgs &&policy_args = std::tuple{}, ThreadAllocatorArgs &&thread_allocator_args = std::tuple{})
+    noexcept(can_nothrow_make_from_tuple<TaskQueue, QueueArgs> && can_nothrow_make_from_tuple<Policy, PolicyArgs> && can_nothrow_make_from_tuple<ThreadAllocator, ThreadAllocatorArgs>) :
+      policy_{std::make_from_tuple<Policy>(std::forward<PolicyArgs>(policy_args))}, tasks_{std::make_from_tuple<TaskQueue>(std::forward<QueueArgs>(queue_args))},
+      stop_sources_{std::make_from_tuple<ThreadAllocator>(std::forward<ThreadAllocatorArgs>(thread_allocator_args))} {}
+
+  ///@brief Default constructor for ThreadPool, initializes with default policy and task queue.
+  constexpr ThreadPool() noexcept(std::is_nothrow_default_constructible_v<Policy> && std::is_nothrow_default_constructible_v<TaskQueue> && std::is_nothrow_default_constructible_v<ThreadAllocator>)
+    requires(std::is_default_constructible_v<Policy> && std::is_default_constructible_v<TaskQueue> && std::is_default_constructible_v<ThreadAllocator>) = default;
 
   /**
    * @brief Submit one or more tasks to the thread pool's task queue.
