@@ -83,7 +83,7 @@ class ThreadPool {
    */
   template <typename Pol, typename... Queue> requires std::constructible_from<Policy, Pol> && std::constructible_from<TaskQueue, Queue...>
   constexpr explicit ThreadPool(Pol &&policy, Queue &&...args) noexcept(std::is_nothrow_constructible_v<Policy, Pol> && std::is_nothrow_constructible_v<TaskQueue, Queue...>) :
-      policy_(std::forward<Pol>(policy)), tasks_(std::forward<Queue>(args)...) {}
+      policy_{std::forward<Pol>(policy)}, tasks_{std::forward<Queue>(args)...} {}
 
   /**
    * @brief Constructs a ThreadPool with default policy and given task queue arguments.
@@ -91,7 +91,7 @@ class ThreadPool {
    * @param args The arguments to construct the task queue.
    */
   template <typename... Queue> requires std::constructible_from<TaskQueue, Queue...> && std::is_default_constructible_v<Policy>
-  constexpr explicit ThreadPool(Queue &&...args) noexcept(std::is_nothrow_default_constructible_v<Policy> && std::is_nothrow_constructible_v<TaskQueue, Queue...>) : tasks_(std::forward<Queue>(args)...) {}
+  constexpr explicit ThreadPool(Queue &&...args) noexcept(std::is_nothrow_default_constructible_v<Policy> && std::is_nothrow_constructible_v<TaskQueue, Queue...>) : tasks_{std::forward<Queue>(args)...} {}
 
   /**
    * @brief Submit one or more tasks to the thread pool's task queue.
@@ -238,9 +238,9 @@ class ThreadPool {
    *         operation_not_supported if the pool is not running).
    */
   constexpr std::expected<std::size_t, std::system_error> set_thread_count(const std::size_t &num) noexcept {
-    if (stop_flag_.load(std::memory_order::acquire) != ThreadPoolStatus::Running) { return std::unexpected(std::system_error(std::make_error_code(std::errc::operation_not_supported))); }
+    if (stop_flag_.load(std::memory_order::acquire) != ThreadPoolStatus::Running) { return std::unexpected{std::system_error{std::make_error_code(std::errc::operation_not_supported)}}; }
 
-    std::lock_guard lock(stop_sources_mutex_);
+    std::lock_guard lock{stop_sources_mutex_};
     const std::size_t old_count = stop_sources_.size();
 
     if (num > old_count) {
@@ -290,7 +290,7 @@ class ThreadPool {
    */
   constexpr ThreadPool& shutdown() noexcept(!thread_pool::Policy::has_on_pool_shutdown<Policy> || thread_pool::Policy::has_on_pool_shutdown_nothrow<Policy>) {
     if (stop_flag_.exchange(ThreadPoolStatus::Stopped, std::memory_order::acq_rel) == ThreadPoolStatus::Stopped) { return *this; }
-    if (std::lock_guard lock(stop_sources_mutex_); !stop_sources_.empty()) { shrink_threads(stop_sources_.size(), stop_sources_.size()); }
+    if (std::lock_guard lock{stop_sources_mutex_}; !stop_sources_.empty()) { shrink_threads(stop_sources_.size(), stop_sources_.size()); }
     if constexpr (thread_pool::Policy::has_on_pool_shutdown<Policy>) { policy_.on_pool_shutdown(); }
     return *this;
   }
@@ -342,16 +342,16 @@ class ThreadPool {
   constexpr std::expected<std::size_t, std::system_error> add_threads(const std::size_t &num, const std::size_t &old_count) noexcept {
     try {
       stop_sources_.reserve(old_count + num);
-    } catch (const std::bad_alloc &) { return std::unexpected(std::system_error(std::make_error_code(std::errc::not_enough_memory))); } catch (const std::length_error &) {
-      return std::unexpected(std::system_error(std::make_error_code(std::errc::invalid_argument)));
+    } catch (const std::bad_alloc &) { return std::unexpected{std::system_error{std::make_error_code(std::errc::not_enough_memory)}}; } catch (const std::length_error &) {
+      return std::unexpected{std::system_error{std::make_error_code(std::errc::invalid_argument)}};
     }
 
     for (std::size_t i = 0; i < num; ++i) {
       try {
-        std::jthread thread(&ThreadPool::worker, this);
+        std::jthread thread{&ThreadPool::worker, this};
         stop_sources_.emplace_back(thread.get_stop_source());
         thread.detach();
-      } catch (const std::system_error &err) { return std::unexpected(err); }
+      } catch (const std::system_error &err) { return std::unexpected{err}; }
     }
 
     return old_count;
@@ -372,7 +372,7 @@ class ThreadPool {
     if constexpr (nothrow_bulk_dequeueable<TaskQueue, Task>) {
       std::array<Task, (std::hardware_constructive_interference_size * CHAR_BIT) / 16> tasks;
       while (const std::size_t bulk_size = pool->fetch_task(stop_token, tasks.size())) {
-        (void)pool->tasks_.dequeue_bulk(std::span<Task>(tasks.data(), bulk_size));
+        (void)pool->tasks_.dequeue_bulk(std::span<Task>{tasks.data(), bulk_size});
         for (std::size_t i = 0; i < bulk_size; ++i) { std::invoke(tasks[i]); }
       }
     } else {

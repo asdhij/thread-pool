@@ -124,7 +124,7 @@ class DefaultQueue {
    * @return size_type The number of tasks in the queue.
    */
   [[nodiscard]] constexpr size_type size() const noexcept {
-    std::lock_guard lock(lock_);
+    std::lock_guard lock{lock_};
     return tasks_.size();
   }
 
@@ -134,7 +134,7 @@ class DefaultQueue {
    * @return false If the queue is not empty.
    */
   [[nodiscard]] constexpr bool empty() const noexcept {
-    std::lock_guard lock(lock_);
+    std::lock_guard lock{lock_};
     return tasks_.empty();
   }
 
@@ -147,8 +147,8 @@ class DefaultQueue {
    */
   template <typename... Args> requires std::constructible_from<T, Args...>
   [[nodiscard]] constexpr bool enqueue(Args&&... args) noexcept {
-    std::lock_guard lock(lock_);
     try {
+      std::lock_guard lock{lock_};
       tasks_.emplace(std::forward<Args>(args)...);
     } catch (...) {
       return false;
@@ -163,7 +163,7 @@ class DefaultQueue {
    * @return false If the queue was empty and no task was dequeued.
    */
   [[nodiscard]] constexpr bool dequeue(T& ret) noexcept {
-    std::lock_guard lock(lock_);
+    std::lock_guard lock{lock_};
     if (tasks_.empty()) [[unlikely]] { return false; }
     ret = std::move_if_noexcept(tasks_.front());
     tasks_.pop();
@@ -178,7 +178,7 @@ class DefaultQueue {
    */
   template <std::size_t Extent> requires (Extent > 0 || Extent == std::dynamic_extent)
   [[nodiscard]] constexpr size_type dequeue_bulk(const std::span<T, Extent>& ret) noexcept {
-    std::lock_guard lock(lock_);
+    std::lock_guard lock{lock_};
     const size_type real = std::min(tasks_.size(), ret.size());
     if (!real) [[unlikely]] { return 0; }
     std::for_each_n(ret.begin(), real, [this](T& t) noexcept {

@@ -38,7 +38,7 @@ export class DefaultTask {
   template <typename F> requires (std::is_nothrow_invocable_r_v<void, std::decay_t<F>> && std::constructible_from<std::decay_t<F>, F> && std::is_nothrow_destructible_v<std::decay_t<F>>)
   struct DerivedStorage : Storage {
     std::decay_t<F> f_;
-    constexpr DerivedStorage(F&& f) noexcept(std::is_nothrow_constructible_v<std::decay_t<F>, F>) : f_(std::decay_t<F>(std::forward<F>(f))) {}
+    constexpr DerivedStorage(F&& f) noexcept(std::is_nothrow_constructible_v<std::decay_t<F>, F>) : f_{std::decay_t<F>(std::forward<F>(f))} {}
     ~DerivedStorage() noexcept override = default;
     void call() noexcept override { std::invoke(f_); }
   };
@@ -53,7 +53,7 @@ export class DefaultTask {
    * @note The callable object must be nothrow invocable and nothrow destructible.
    */
   template <typename F>
-  constexpr explicit DefaultTask(F&& f) : func_(std::make_unique<DerivedStorage<F>>(std::forward<F>(f))) {}
+  constexpr explicit DefaultTask(F&& f) : func_{std::make_unique<DerivedStorage<F>>(std::forward<F>(f))} {}
 
   constexpr DefaultTask() noexcept = default;
   DefaultTask(const DefaultTask&) = delete;
