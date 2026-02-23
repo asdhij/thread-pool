@@ -80,6 +80,31 @@ template <typename T, typename Tuple>
 concept can_nothrow_make_from_tuple = tuple_like<Tuple> && requires (Tuple tuple) { { std::make_from_tuple<T>(std::forward<Tuple>(tuple)) } noexcept; };
 
 /**
+ * @brief fetch number of tasks to process
+ * @param stop_token the stop token to check for stop request
+ * @param max_n the maximum number of tasks to process
+ * @return std::size_t number of tasks to process. 0 if stop is requested, otherwise at least 1
+ */
+constexpr std::size_t fetch_task(const std::stop_token &stop_token, const std::size_t &max_n, std::atomic<std::size_t>& num_queued_tasks) noexcept {
+  [[assume(max_n > 0)]];
+  std::size_t available;
+  while (!stop_token.stop_requested()) {
+    available = num_queued_tasks.load(std::memory_order::acquire);
+    if (stop_token.stop_requested()) [[unlikely]] { return 0; }
+    while (const std::size_t tmp = available & ~stop_mask) {
+      if (const std::size_t min = std::min(tmp, max_n); num_queued_tasks.compare_exchange_weak(available, available - min, std::memory_order::relaxed, std::memory_order::acquire)) {
+        [[assume(max_n > 1 || min == 1)]];
+        return min;
+      } else if (stop_token.stop_requested()) [[unlikely]] {
+        return 0;
+      }
+    }
+    num_queued_tasks.wait(0, std::memory_order::acquire);
+  }
+  return 0;
+}
+
+/**
  * @brief Thread pool class template for managing and executing tasks concurrently.
  * @tparam Task The task type to be executed by the thread pool, should satisfy thread_pool::task concept.
  * @tparam TaskQueue The task queue type used to store and manage tasks, should satisfy thread_pool::task_queue concept.
@@ -427,13 +452,13 @@ class ThreadPool {
 
     if constexpr (nothrow_bulk_dequeueable<TaskQueue, Task>) {
       std::array<Task, (std::hardware_constructive_interference_size * CHAR_BIT) / 16> tasks;
-      while (const std::size_t bulk_size = pool->fetch_task(stop_token, tasks.size())) {
+      while (const std::size_t bulk_size = fetch_task(stop_token, tasks.size(), pool->num_queued_tasks_)) {
         (void)pool->tasks_.dequeue_bulk(std::span<Task>{tasks.data(), bulk_size});
         for (std::size_t i = 0; i < bulk_size; ++i) { std::invoke(tasks[i]); }
       }
     } else {
       Task task;
-      while (pool->fetch_task(stop_token, 1)) {
+      while (fetch_task(stop_token, 1, pool->num_queued_tasks_)) {
         (void)pool->tasks_.dequeue(task);
         std::invoke(task);
       }
@@ -447,31 +472,6 @@ class ThreadPool {
     }
 
     pool->num_running_threads_.fetch_sub(1, std::memory_order::release);
-  }
-
-  /**
-   * @brief fetch number of tasks to process
-   * @param stop_token the stop token to check for stop request
-   * @param max_n the maximum number of tasks to process
-   * @return std::size_t number of tasks to process. 0 if stop is requested, otherwise at least 1
-   */
-  constexpr std::size_t fetch_task(const std::stop_token &stop_token, const std::size_t &max_n) noexcept {
-    [[assume(max_n > 0)]];
-    std::size_t available;
-    while (!stop_token.stop_requested()) {
-      available = num_queued_tasks_.load(std::memory_order::acquire);
-      if (stop_token.stop_requested()) [[unlikely]] { return 0; }
-      while (const std::size_t tmp = available & ~stop_mask) {
-        if (const std::size_t min = std::min(tmp, max_n); num_queued_tasks_.compare_exchange_weak(available, available - min, std::memory_order::relaxed, std::memory_order::acquire)) {
-          [[assume(max_n > 1 || min == 1)]];
-          return min;
-        } else if (stop_token.stop_requested()) [[unlikely]] {
-          return 0;
-        }
-      }
-      num_queued_tasks_.wait(0, std::memory_order::acquire);
-    }
-    return 0;
   }
 
   TaskQueue tasks_;
