@@ -20,7 +20,6 @@ import thread_pool.task;
 #include <expected>
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <new>
 #include <span>
 #include <stdexcept>
@@ -283,15 +282,18 @@ class ThreadPool {
   constexpr std::expected<std::size_t, std::system_error> set_thread_count(const std::size_t &num) noexcept {
     if (stop_flag_.load(std::memory_order::acquire) != ThreadPoolStatus::Running) { return std::unexpected{std::system_error{std::make_error_code(std::errc::operation_not_supported)}}; }
 
-    std::lock_guard lock{stop_sources_mutex_};
+    lock_stop_sources();
     const std::size_t old_count = stop_sources_.size();
 
     if (num > old_count) {
-      return add_threads(num - old_count, old_count);
+      const auto res{add_threads(num - old_count, old_count)};
+      release_stop_sources();
+      return res;
     } else if (num < old_count) {
       shrink_threads(old_count - num, old_count);
     }
 
+    release_stop_sources();
     return old_count;
   }
 
@@ -333,7 +335,9 @@ class ThreadPool {
    */
   constexpr ThreadPool& shutdown() noexcept(!thread_pool::Policy::has_on_pool_shutdown<std::add_lvalue_reference_t<Policy>> || thread_pool::Policy::has_on_pool_shutdown_nothrow<std::add_lvalue_reference_t<Policy>>) {
     if (stop_flag_.exchange(ThreadPoolStatus::Stopped, std::memory_order::acq_rel) == ThreadPoolStatus::Stopped) { return *this; }
-    if (std::lock_guard lock{stop_sources_mutex_}; !stop_sources_.empty()) { shrink_threads(stop_sources_.size(), stop_sources_.size()); }
+    lock_stop_sources();
+    if (!stop_sources_.empty()) { shrink_threads(stop_sources_.size(), stop_sources_.size()); }
+    release_stop_sources();
     if constexpr (thread_pool::Policy::has_on_pool_shutdown<std::add_lvalue_reference_t<Policy>>) { policy_.on_pool_shutdown(); }
     return *this;
   }
@@ -382,6 +386,15 @@ class ThreadPool {
   }
 
  private:
+  constexpr void lock_stop_sources() noexcept {
+    while (stop_sources_mutex_.test_and_set(std::memory_order::acquire)) { stop_sources_mutex_.wait(true, std::memory_order::relaxed); }
+  }
+
+  constexpr void release_stop_sources() noexcept {
+    stop_sources_mutex_.clear(std::memory_order::release);
+    stop_sources_mutex_.notify_one();
+  }
+
   constexpr std::expected<std::size_t, std::system_error> add_threads(const std::size_t &num, const std::size_t &old_count) noexcept {
     try {
       stop_sources_.reserve(old_count + num);
@@ -462,7 +475,7 @@ class ThreadPool {
   }
 
   TaskQueue tasks_;
-  std::mutex stop_sources_mutex_;
+  std::atomic_flag stop_sources_mutex_;
   std::vector<std::stop_source, thread_allocator_type> stop_sources_;
   std::atomic<std::size_t> num_running_threads_{0}, num_threads_waiting_for_stop_{0}, num_queued_tasks_{0};
   std::atomic<ThreadPoolStatus> stop_flag_{ThreadPoolStatus::Running};
