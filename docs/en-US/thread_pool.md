@@ -33,7 +33,7 @@
 - Construct with separate argument tuples for `TaskQueue`, `Policy`, and `ThreadAllocator` (in that order).
   ```cpp
   template <tuple_like QueueArgs, tuple_like PolicyArgs = std::tuple<>, tuple_like ThreadAllocatorArgs = std::tuple<>>
-    requires can_make_from_tuple<TaskQueue, QueueArgs> && can_make_from_tuple<Policy, PolicyArgs> && can_make_from_tuple<ThreadAllocator, ThreadAllocatorArgs>
+    requires can_make_from_tuple<TaskQueue, QueueArgs> && can_make_from_tuple<Policy, PolicyArgs> && can_make_from_tuple<thread_allocator_type, ThreadAllocatorArgs>
   constexpr explicit ThreadPool(QueueArgs &&queue_args, PolicyArgs &&policy_args = std::tuple{}, ThreadAllocatorArgs &&thread_allocator_args = std::tuple{}) noexcept(/*noex*/);
   ```
 

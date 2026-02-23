@@ -33,7 +33,7 @@ namespace thread_pool {
  */
 export template <typename Queue, typename... Args>
 concept nothrow_enqueueable = requires(Queue queue, Args&&... args) {
-  { queue.enqueue(std::forward<Args>(args)...) } noexcept -> std::same_as<bool>;
+  { std::forward<Queue>(queue).enqueue(std::forward<Args>(args)...) } noexcept -> std::same_as<bool>;
 };
 
 /**
@@ -48,7 +48,7 @@ concept nothrow_enqueueable = requires(Queue queue, Args&&... args) {
  */
 export template <typename Queue, typename... Args>
 concept nothrow_bulk_enqueueable = requires(Queue queue, Args&&... args) {
-  { queue.enqueue_bulk(std::forward<Args>(args)...) } noexcept -> std::same_as<bool>;
+  { std::forward<Queue>(queue).enqueue_bulk(std::forward<Args>(args)...) } noexcept -> std::same_as<bool>;
 };
 
 /**
@@ -61,7 +61,7 @@ concept nothrow_bulk_enqueueable = requires(Queue queue, Args&&... args) {
  */
 export template <typename Queue, typename Ret>
 concept nothrow_dequeueable = requires(Queue queue, Ret& ret) {
-  { (void)queue.dequeue(ret) } noexcept;
+  { (void)std::forward<Queue>(queue).dequeue(ret) } noexcept;
 };
 
 /**
@@ -77,7 +77,7 @@ concept nothrow_dequeueable = requires(Queue queue, Ret& ret) {
  */
 export template <typename Queue, typename Ret>
 concept nothrow_bulk_dequeueable = requires(Queue queue, std::span<Ret, std::dynamic_extent> tasks) {
-  { (void)queue.dequeue_bulk(tasks) } noexcept;
+  { (void)std::forward<Queue>(queue).dequeue_bulk(tasks) } noexcept;
 };
 
 /**
@@ -89,7 +89,7 @@ concept nothrow_bulk_dequeueable = requires(Queue queue, std::span<Ret, std::dyn
  *       when adding tasks to the queue, which is not a requirement for being a task queue.
  */
 export template <typename Queue, typename Task>
-concept task_queue = task<Task> && (nothrow_dequeueable<Queue, Task> || nothrow_bulk_dequeueable<Queue, Task>);
+concept task_queue = task<Task> && (nothrow_dequeueable<std::add_lvalue_reference_t<Queue>, Task> || nothrow_bulk_dequeueable<std::add_lvalue_reference_t<Queue>, Task>);
 
 template <typename T>
 concept nothrow_assign_destructible = requires(T a, T b) {

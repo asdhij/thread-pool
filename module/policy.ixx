@@ -31,7 +31,7 @@ namespace Policy {
  */
 export template <typename Policy>
 concept has_on_thread_start = requires(Policy policy) {
-  { policy.on_thread_start() } noexcept -> std::same_as<void>;
+  { std::forward<Policy>(policy).on_thread_start() } noexcept -> std::same_as<void>;
 };
 
 /**
@@ -46,7 +46,7 @@ concept has_on_thread_start = requires(Policy policy) {
  */
 export template <typename Policy>
 concept has_on_thread_exit = requires(Policy policy) {
-  { policy.on_thread_exit() } noexcept -> std::same_as<void>;
+  { std::forward<Policy>(policy).on_thread_exit() } noexcept -> std::same_as<void>;
 };
 
 /**
@@ -61,7 +61,7 @@ concept has_on_thread_exit = requires(Policy policy) {
  */
 export template <typename Policy>
 concept has_on_pool_destroy = requires(Policy policy) {
-  { policy.on_pool_destroy() } noexcept -> std::same_as<void>;
+  { std::forward<Policy>(policy).on_pool_destroy() } noexcept -> std::same_as<void>;
 };
 
 /**
@@ -75,7 +75,7 @@ concept has_on_pool_destroy = requires(Policy policy) {
  */
 export template <typename Policy>
 concept has_on_pool_stop = requires(Policy policy) {
-  { policy.on_pool_stop() } -> std::same_as<void>;
+  { std::forward<Policy>(policy).on_pool_stop() } -> std::same_as<void>;
 };
 
 /**
@@ -85,7 +85,7 @@ concept has_on_pool_stop = requires(Policy policy) {
  */
 export template <typename Policy>
 concept has_on_pool_stop_nothrow = has_on_pool_stop<Policy> && requires(Policy policy) {
-  { policy.on_pool_stop() } noexcept;
+  { std::forward<Policy>(policy).on_pool_stop() } noexcept;
 };
 
 /**
@@ -99,7 +99,7 @@ concept has_on_pool_stop_nothrow = has_on_pool_stop<Policy> && requires(Policy p
  */
 export template <typename Policy>
 concept has_on_pool_shutdown = requires(Policy policy) {
-  { policy.on_pool_shutdown() } -> std::same_as<void>;
+  { std::forward<Policy>(policy).on_pool_shutdown() } -> std::same_as<void>;
 };
 
 /**
@@ -109,7 +109,7 @@ concept has_on_pool_shutdown = requires(Policy policy) {
  */
 export template <typename Policy>
 concept has_on_pool_shutdown_nothrow = has_on_pool_shutdown<Policy> && requires(Policy policy) {
-  { policy.on_pool_shutdown() } noexcept;
+  { std::forward<Policy>(policy).on_pool_shutdown() } noexcept;
 };
 
 /**
@@ -125,7 +125,7 @@ concept has_on_pool_shutdown_nothrow = has_on_pool_shutdown<Policy> && requires(
  */
 export template <typename Policy, typename... Task>
 concept has_on_task_enqueue_failed = requires(Policy policy, Task&&... task) {
-  { policy.on_task_enqueue_failed(std::forward<Task>(task)...) } noexcept -> std::same_as<void>;
+  { std::forward<Policy>(policy).on_task_enqueue_failed(std::forward<Task>(task)...) } noexcept -> std::same_as<void>;
 };
 
 }  // namespace Policy

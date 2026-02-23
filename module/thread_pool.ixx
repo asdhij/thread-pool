@@ -61,7 +61,7 @@ concept allocator = requires(Alloc alloc, std::size_t n, typename std::allocator
   { alloc.deallocate(ptr, n) } -> std::same_as<void>;
   std::allocator_traits<Alloc>::deallocate(alloc, ptr, n);
   std::allocator_traits<Alloc>::destroy(alloc, ptr);
-};
+} && std::destructible<Alloc>;
 
 template<typename T, typename = void>
 struct has_tuple_size : std::false_type {};
@@ -87,9 +87,13 @@ concept can_nothrow_make_from_tuple = tuple_like<Tuple> && requires (Tuple tuple
  * @tparam Policy The policy type for customizing thread pool behavior.
  * @tparam ThreadAllocator The allocator type for managing thread resources.
  */
-export template <task Task = DefaultTask, std::destructible TaskQueue = DefaultQueue<Task>, std::destructible Policy = DefaultPolicy, allocator ThreadAllocator = std::allocator<std::stop_source>> requires task_queue<TaskQueue, Task>
+export template <task Task = DefaultTask, std::destructible TaskQueue = DefaultQueue<Task>, std::destructible Policy = DefaultPolicy, allocator ThreadAllocator = std::allocator<std::stop_source>>
+  requires task_queue<TaskQueue, Task> && (!std::is_rvalue_reference_v<TaskQueue> && !std::is_rvalue_reference_v<Policy>)
 class ThreadPool {
  public:
+  using task_type = Task;
+  using task_queue_type = TaskQueue;
+  using policy_type = Policy;
   using thread_allocator_type = typename std::allocator_traits<ThreadAllocator>::template rebind_alloc<std::stop_source>;
 
   /**
@@ -99,8 +103,8 @@ class ThreadPool {
    * @param policy The policy instance to be used by the thread pool.
    * @param args The arguments to construct the task queue.
    */
-  template <typename Pol, typename... Queue> requires std::constructible_from<Policy, Pol> && std::constructible_from<TaskQueue, Queue...>
-  constexpr explicit ThreadPool(Pol &&policy, Queue &&...args) noexcept(std::is_nothrow_constructible_v<Policy, Pol> && std::is_nothrow_constructible_v<TaskQueue, Queue...>) :
+  template <typename Pol, typename... Queue> requires std::constructible_from<Policy, Pol> && std::constructible_from<TaskQueue, Queue...> && std::is_default_constructible_v<thread_allocator_type>
+  constexpr explicit ThreadPool(Pol &&policy, Queue &&...args) noexcept(std::is_nothrow_constructible_v<Policy, Pol> && std::is_nothrow_constructible_v<TaskQueue, Queue...> && std::is_nothrow_default_constructible_v<thread_allocator_type>) :
       policy_{std::forward<Pol>(policy)}, tasks_{std::forward<Queue>(args)...} {}
 
   /**
@@ -108,8 +112,9 @@ class ThreadPool {
    * @tparam Queue The types of arguments to construct the task queue.
    * @param args The arguments to construct the task queue.
    */
-  template <typename... Queue> requires std::constructible_from<TaskQueue, Queue...> && std::is_default_constructible_v<Policy>
-  constexpr explicit ThreadPool(Queue &&...args) noexcept(std::is_nothrow_default_constructible_v<Policy> && std::is_nothrow_constructible_v<TaskQueue, Queue...>) : tasks_{std::forward<Queue>(args)...} {}
+  template <typename... Queue> requires std::constructible_from<TaskQueue, Queue...> && std::is_default_constructible_v<Policy> && std::is_default_constructible_v<thread_allocator_type>
+  constexpr explicit ThreadPool(Queue &&...args) noexcept(std::is_nothrow_default_constructible_v<Policy> && std::is_nothrow_constructible_v<TaskQueue, Queue...> && std::is_nothrow_default_constructible_v<thread_allocator_type>) :
+      tasks_{std::forward<Queue>(args)...} {}
 
   /**
    * @brief Constructs a ThreadPool with custom task queue, policy, and thread allocator arguments.
@@ -121,15 +126,15 @@ class ThreadPool {
    * @param thread_allocator_args The arguments to construct the thread allocator.
    */
   template <tuple_like QueueArgs, tuple_like PolicyArgs = std::tuple<>, tuple_like ThreadAllocatorArgs = std::tuple<>>
-    requires can_make_from_tuple<TaskQueue, QueueArgs> && can_make_from_tuple<Policy, PolicyArgs> && can_make_from_tuple<ThreadAllocator, ThreadAllocatorArgs>
+    requires can_make_from_tuple<TaskQueue, QueueArgs> && can_make_from_tuple<Policy, PolicyArgs> && can_make_from_tuple<thread_allocator_type, ThreadAllocatorArgs>
   constexpr explicit ThreadPool(QueueArgs &&queue_args, PolicyArgs &&policy_args = std::tuple{}, ThreadAllocatorArgs &&thread_allocator_args = std::tuple{})
-    noexcept(can_nothrow_make_from_tuple<TaskQueue, QueueArgs> && can_nothrow_make_from_tuple<Policy, PolicyArgs> && can_nothrow_make_from_tuple<ThreadAllocator, ThreadAllocatorArgs>) :
+    noexcept(can_nothrow_make_from_tuple<TaskQueue, QueueArgs> && can_nothrow_make_from_tuple<Policy, PolicyArgs> && can_nothrow_make_from_tuple<thread_allocator_type, ThreadAllocatorArgs>) :
       policy_{std::make_from_tuple<Policy>(std::forward<PolicyArgs>(policy_args))}, tasks_{std::make_from_tuple<TaskQueue>(std::forward<QueueArgs>(queue_args))},
-      stop_sources_{std::make_from_tuple<ThreadAllocator>(std::forward<ThreadAllocatorArgs>(thread_allocator_args))} {}
+      stop_sources_{std::make_from_tuple<thread_allocator_type>(std::forward<ThreadAllocatorArgs>(thread_allocator_args))} {}
 
   ///@brief Default constructor for ThreadPool, initializes with default policy and task queue.
-  constexpr ThreadPool() noexcept(std::is_nothrow_default_constructible_v<Policy> && std::is_nothrow_default_constructible_v<TaskQueue> && std::is_nothrow_default_constructible_v<ThreadAllocator>)
-    requires(std::is_default_constructible_v<Policy> && std::is_default_constructible_v<TaskQueue> && std::is_default_constructible_v<ThreadAllocator>) = default;
+  constexpr ThreadPool() noexcept(std::is_nothrow_default_constructible_v<Policy> && std::is_nothrow_default_constructible_v<TaskQueue> && std::is_nothrow_default_constructible_v<thread_allocator_type>)
+    requires(std::is_default_constructible_v<Policy> && std::is_default_constructible_v<TaskQueue> && std::is_default_constructible_v<thread_allocator_type>) = default;
 
   /**
    * @brief Submit one or more tasks to the thread pool's task queue.
@@ -203,11 +208,11 @@ class ThreadPool {
    *   - The noexcept requirement and the nothrow_* constraints ensure no exceptions
    *     propagate from the enqueue operations (or they are handled by the Policy).
    */
-  template <typename... F> requires (sizeof...(F) > 0 && (nothrow_bulk_enqueueable<TaskQueue, F...> || (nothrow_enqueueable<TaskQueue, F> && ...)))
+  template <typename... F> requires (sizeof...(F) > 0 && (nothrow_bulk_enqueueable<std::add_lvalue_reference_t<TaskQueue>, F...> || (nothrow_enqueueable<std::add_lvalue_reference_t<TaskQueue>, F> && ...)))
   constexpr bool submit(F &&...tasks) noexcept {
     if (stop_flag_.load(std::memory_order::acquire) != ThreadPoolStatus::Running) { return false; }
 
-    if constexpr ((sizeof...(F) > 1 && nothrow_bulk_enqueueable<TaskQueue, F...>) || (sizeof...(F) == 1 && !(nothrow_enqueueable<TaskQueue, F> && ...))) {
+    if constexpr ((sizeof...(F) > 1 && nothrow_bulk_enqueueable<std::add_lvalue_reference_t<TaskQueue>, F...>) || (sizeof...(F) == 1 && !(nothrow_enqueueable<std::add_lvalue_reference_t<TaskQueue>, F> && ...))) {
       if (tasks_.enqueue_bulk(std::forward<F>(tasks)...)) {
         if (!num_queued_tasks_.fetch_add(sizeof...(F), std::memory_order::release)) {
           if constexpr (sizeof...(F) > 1) {
@@ -216,14 +221,14 @@ class ThreadPool {
             num_queued_tasks_.notify_one();
           }
         }
-      } else if constexpr (thread_pool::Policy::has_on_task_enqueue_failed<Policy, F...>) {
+      } else if constexpr (thread_pool::Policy::has_on_task_enqueue_failed<std::add_lvalue_reference_t<Policy>, F...>) {
         policy_.on_task_enqueue_failed(std::forward<F>(tasks)...);
-      } else if constexpr ((thread_pool::Policy::has_on_task_enqueue_failed<Policy, F> && ...)) {
+      } else if constexpr ((thread_pool::Policy::has_on_task_enqueue_failed<std::add_lvalue_reference_t<Policy>, F> && ...)) {
         (policy_.on_task_enqueue_failed(std::forward<F>(tasks)), ...);
       }
     } else {
       const std::size_t num = ([this, &tasks] -> bool {
-        if constexpr (thread_pool::Policy::has_on_task_enqueue_failed<Policy, F>) {
+        if constexpr (thread_pool::Policy::has_on_task_enqueue_failed<std::add_lvalue_reference_t<Policy>, F>) {
           if (tasks_.enqueue(std::forward<F>(tasks))) { return true; }
           policy_.on_task_enqueue_failed(std::forward<F>(tasks));
           return false;
@@ -311,9 +316,9 @@ class ThreadPool {
     *      until the shutdown or set_thread_count is called.
    * @return Reference to this ThreadPool instance.
    */
-  constexpr ThreadPool& stop() noexcept(!thread_pool::Policy::has_on_pool_stop<Policy> || thread_pool::Policy::has_on_pool_stop_nothrow<Policy>) {
+  constexpr ThreadPool& stop() noexcept(!thread_pool::Policy::has_on_pool_stop<std::add_lvalue_reference_t<Policy>> || thread_pool::Policy::has_on_pool_stop_nothrow<std::add_lvalue_reference_t<Policy>>) {
     if (ThreadPoolStatus expected = ThreadPoolStatus::Running; !stop_flag_.compare_exchange_strong(expected, ThreadPoolStatus::Stopping, std::memory_order::release, std::memory_order::acquire)) { return *this; }
-    if constexpr (thread_pool::Policy::has_on_pool_stop<Policy>) { policy_.on_pool_stop(); }
+    if constexpr (thread_pool::Policy::has_on_pool_stop<std::add_lvalue_reference_t<Policy>>) { policy_.on_pool_stop(); }
     return *this;
   }
 
@@ -326,10 +331,10 @@ class ThreadPool {
    *       and then stop when they check for the stop condition.
    * @return Reference to this ThreadPool instance.
    */
-  constexpr ThreadPool& shutdown() noexcept(!thread_pool::Policy::has_on_pool_shutdown<Policy> || thread_pool::Policy::has_on_pool_shutdown_nothrow<Policy>) {
+  constexpr ThreadPool& shutdown() noexcept(!thread_pool::Policy::has_on_pool_shutdown<std::add_lvalue_reference_t<Policy>> || thread_pool::Policy::has_on_pool_shutdown_nothrow<std::add_lvalue_reference_t<Policy>>) {
     if (stop_flag_.exchange(ThreadPoolStatus::Stopped, std::memory_order::acq_rel) == ThreadPoolStatus::Stopped) { return *this; }
     if (std::lock_guard lock{stop_sources_mutex_}; !stop_sources_.empty()) { shrink_threads(stop_sources_.size(), stop_sources_.size()); }
-    if constexpr (thread_pool::Policy::has_on_pool_shutdown<Policy>) { policy_.on_pool_shutdown(); }
+    if constexpr (thread_pool::Policy::has_on_pool_shutdown<std::add_lvalue_reference_t<Policy>>) { policy_.on_pool_shutdown(); }
     return *this;
   }
 
@@ -362,7 +367,7 @@ class ThreadPool {
    * @brief Get the const reference to the task queue
    * @warning Thread safety depends on TaskQueue implementation
    */
-  const TaskQueue &task_queue() const noexcept { return tasks_; }
+  constexpr std::add_lvalue_reference_t<std::add_const_t<std::remove_reference_t<TaskQueue>>> task_queue() const noexcept { return tasks_; }
 
   /**
    * @brief Get the thread allocator object
@@ -371,7 +376,7 @@ class ThreadPool {
   [[nodiscard]] constexpr thread_allocator_type get_thread_allocator() const noexcept(noexcept(stop_sources_.get_allocator())) { return stop_sources_.get_allocator(); }
 
   constexpr ~ThreadPool() noexcept {
-    if constexpr (thread_pool::Policy::has_on_pool_destroy<Policy>) { policy_.on_pool_destroy(); }
+    if constexpr (thread_pool::Policy::has_on_pool_destroy<std::add_lvalue_reference_t<Policy>>) { policy_.on_pool_destroy(); }
     shutdown();
     join_all_threads();
   }
@@ -405,7 +410,7 @@ class ThreadPool {
   constexpr static inline void worker(const std::stop_token &stop_token, ThreadPool *const pool) noexcept {
     pool->num_running_threads_.fetch_add(1, std::memory_order::relaxed);
 
-    if constexpr (thread_pool::Policy::has_on_thread_start<Policy>) { pool->policy_.on_thread_start(); }
+    if constexpr (thread_pool::Policy::has_on_thread_start<std::add_lvalue_reference_t<Policy>>) { pool->policy_.on_thread_start(); }
 
     if constexpr (nothrow_bulk_dequeueable<TaskQueue, Task>) {
       std::array<Task, (std::hardware_constructive_interference_size * CHAR_BIT) / 16> tasks;
@@ -421,7 +426,7 @@ class ThreadPool {
       }
     }
 
-    if constexpr (thread_pool::Policy::has_on_thread_exit<Policy>) { pool->policy_.on_thread_exit(); }
+    if constexpr (thread_pool::Policy::has_on_thread_exit<std::add_lvalue_reference_t<Policy>>) { pool->policy_.on_thread_exit(); }
 
     // decrement wait-for-stop counter; if this was the last thread, clear stop bits
     if (pool->num_threads_waiting_for_stop_.fetch_sub(1, std::memory_order::acq_rel) == 1 && !(pool->num_queued_tasks_.fetch_xor(stop_mask, std::memory_order::acq_rel) & stop_mask)) [[unlikely]] {
