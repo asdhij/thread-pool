@@ -474,12 +474,12 @@ class ThreadPool {
     pool->num_running_threads_.fetch_sub(1, std::memory_order::release);
   }
 
-  TaskQueue tasks_;
+  [[no_unique_address]] TaskQueue tasks_;
+  [[no_unique_address]] Policy policy_;
   std::atomic_flag stop_sources_mutex_;
   std::vector<std::stop_source, thread_allocator_type> stop_sources_;
   std::atomic<std::size_t> num_running_threads_{0}, num_threads_waiting_for_stop_{0}, num_queued_tasks_{0};
   std::atomic<ThreadPoolStatus> stop_flag_{ThreadPoolStatus::Running};
-  Policy policy_;
 };
 
 }  // namespace thread_pool
