@@ -451,7 +451,7 @@ class ThreadPool {
     if constexpr (thread_pool::Policy::has_on_thread_start<std::add_lvalue_reference_t<Policy>>) { pool->policy_.on_thread_start(); }
 
     if constexpr (nothrow_bulk_dequeueable<TaskQueue, Task>) {
-      std::array<Task, (std::hardware_constructive_interference_size * CHAR_BIT) / 16> tasks;
+      std::array<Task, dequeue_bulk_size_v<TaskQueue>> tasks;
       while (const std::size_t bulk_size = fetch_task(stop_token, tasks.size(), pool->num_queued_tasks_)) {
         (void)pool->tasks_.dequeue_bulk(std::span<Task>{tasks.data(), bulk_size});
         for (std::size_t i = 0; i < bulk_size; ++i) { std::invoke(tasks[i]); }

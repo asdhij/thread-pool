@@ -11,7 +11,7 @@
 - `Task` (default: `thread_pool::DefaultTask`)
   - A type satisfying the `thread_pool::task` concept.
 - `TaskQueue` (default: `thread_pool::DefaultQueue<Task>`)
-  - `Task` storage and retrieval type; must satisfy `thread_pool::task_queue` concept for the `Task` type.
+  - `Task` storage and retrieval type; must satisfy `thread_pool::task_queue<TaskQueue, Task, std::dynamic_extent>` concept.
 - `Policy` (default: `thread_pool::DefaultPolicy`)
   - Optional hooks (`on_thread_start`, `on_thread_exit`, `on_pool_destroy`, `on_pool_stop`, `on_pool_shutdown`, `on_task_enqueue_failed`).
 - `ThreadAllocator` (default: `std::allocator<std::stop_source>`)

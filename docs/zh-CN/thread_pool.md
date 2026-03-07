@@ -11,7 +11,7 @@
 - `Task`（默认：`thread_pool::DefaultTask`）
   - 满足 `thread_pool::task` 概念的类型。
 - `TaskQueue`（默认：`thread_pool::DefaultQueue<Task>`）
-  - `Task` 存储和检索类型；必须满足针对 `Task` 类型的 `thread_pool::task_queue` 概念。
+  - `Task` 存储和检索类型；必须满足 `thread_pool::task_queue<TaskQueue, Task, std::dynamic_extent>` 概念。
 - `Policy`（默认：`thread_pool::DefaultPolicy`）
   - 可选钩子（`on_thread_start`、`on_thread_exit`、`on_pool_destroy`、`on_pool_stop`、`on_pool_shutdown`、`on_task_enqueue_failed`）。
 - `ThreadAllocator`（默认：`std::allocator<std::stop_source>`）
