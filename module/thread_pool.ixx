@@ -99,7 +99,7 @@ constexpr std::size_t fetch_task(const std::stop_token &stop_token, const std::s
         return 0;
       }
     }
-    num_queued_tasks.wait(0, std::memory_order::acquire);
+    num_queued_tasks.wait(0, std::memory_order::relaxed);
   }
   return 0;
 }
@@ -375,7 +375,7 @@ class ThreadPool {
    */
   constexpr void join_all_threads() const noexcept {
     while (const std::size_t num_running_threads = num_running_threads_.load(std::memory_order::acquire)) {
-      num_running_threads_.wait(num_running_threads, std::memory_order::acquire);
+      num_running_threads_.wait(num_running_threads, std::memory_order::relaxed);
     }
   }
 
@@ -388,7 +388,7 @@ class ThreadPool {
   constexpr void wait_for_tasks_completion() const noexcept {
     std::size_t num_queued_tasks;
     while ((num_queued_tasks = num_queued_tasks_.load(std::memory_order::acquire)) & ~stop_mask) {
-      num_queued_tasks_.wait(num_queued_tasks, std::memory_order::acquire);
+      num_queued_tasks_.wait(num_queued_tasks, std::memory_order::relaxed);
     }
   }
 
