@@ -13,6 +13,7 @@ import thread_pool.task;
 #include <gtest/gtest.h>
 
 #include <atomic>
+#include <chrono>
 #include <random>
 #include <thread>
 #include <vector>
@@ -328,6 +329,67 @@ TEST(DefaultQueueTest, MoveSemantics) {
   EXPECT_TRUE(queue.dequeue(result));
   EXPECT_NE(result, nullptr);
   EXPECT_EQ(*result, 42);
+}
+
+}  // namespace
+
+namespace {
+
+// Tests for DefaultThreadLocalQueue
+
+TEST(DefaultThreadLocalQueueTest, BasicConstruction) {
+  thread_pool::DefaultThreadLocalQueue<thread_pool::DefaultTask> queue;
+  EXPECT_TRUE(queue.empty());
+  EXPECT_EQ(queue.size(), 0);
+}
+
+TEST(DefaultThreadLocalQueueTest, ProcessTasksAndEnqueue) {
+  thread_pool::DefaultThreadLocalQueue<thread_pool::DefaultTask> queue;
+  std::atomic<int> counter{0};
+
+  // Enqueue a noexcept lambda that increments the counter.
+  EXPECT_TRUE(queue.enqueue([&counter]() noexcept { ++counter; }));
+  EXPECT_EQ(queue.size(), 1);
+
+  // Process tasks on the owning thread.
+  queue.process_tasks();
+  EXPECT_EQ(counter.load(), 1);
+  EXPECT_TRUE(queue.empty());
+}
+
+TEST(DefaultThreadLocalQueueTest, WaitForTaskWakesOnEnqueue) {
+  thread_pool::DefaultThreadLocalQueue<thread_pool::DefaultTask> queue;
+  std::atomic<bool> woke{false};
+
+  std::thread waiter([&] {
+    // This should block until a task is enqueued.
+    const bool has = queue.wait_for_task();
+    woke.store(has);
+  });
+
+  // Give the waiter a moment to start waiting.
+  std::this_thread::sleep_for(std::chrono::milliseconds{5});
+
+  EXPECT_TRUE(queue.enqueue([]() noexcept {}));
+  waiter.join();
+  EXPECT_TRUE(woke.load());
+}
+
+TEST(DefaultThreadLocalQueueTest, WaitForTaskReturnsFalseOnStop) {
+  thread_pool::DefaultThreadLocalQueue<thread_pool::DefaultTask> queue;
+  std::atomic<bool> woke{true};
+
+  std::thread waiter([&] {
+    // Should return false when stop is requested and no tasks are pending.
+    const bool has = queue.wait_for_task();
+    woke.store(has);
+  });
+
+  // Give the waiter a moment to start waiting.
+  std::this_thread::sleep_for(std::chrono::milliseconds{5});
+  queue.notify_for_stop();
+  waiter.join();
+  EXPECT_FALSE(woke.load());
 }
 
 }  // namespace
