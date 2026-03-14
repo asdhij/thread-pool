@@ -9,10 +9,11 @@ find_package(Threads REQUIRED)
 
 add_library(${PROJECT_NAME})
 target_sources(${PROJECT_NAME} PUBLIC FILE_SET CXX_MODULES FILES
-  thread_pool.ixx
+  affinity_thread_pool.ixx
+  policy.ixx
   task.ixx
   task_queue.ixx
-  policy.ixx
+  thread_pool.ixx
 )
 target_link_libraries(${PROJECT_NAME} PUBLIC Threads::Threads)
 
