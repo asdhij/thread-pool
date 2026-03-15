@@ -149,6 +149,7 @@ ctest --test-dir build
 
 ## Documentation
 - [ThreadPool class (API)](docs/en-US/thread_pool.md)
+- [AffinityThreadPool (API)](docs/en-US/affinity_thread_pool.md)
 - [Task concept & DefaultTask](docs/en-US/task.md)
 - [TaskQueue concepts & DefaultQueue](docs/en-US/task_queue.md)
 - [Policy concepts & DefaultPolicy](docs/en-US/policy.md)
@@ -176,6 +177,16 @@ The generated documentation will be located at `build/docs/html/index.html`. Ope
     - `task_queue`
     - `get_thread_allocator`
   - [Destructor](docs/en-US/thread_pool.md#destructor)
+
+- [AffinityThreadPool](docs/en-US/affinity_thread_pool.md)
+  - [Constructors](docs/en-US/affinity_thread_pool.md#constructor)
+  - [Primary methods](docs/en-US/affinity_thread_pool.md#primary-api)
+    - `start`
+    - `get_thread_reference`
+    - `join_all_threads`
+    - `max_thread_count`
+    - `thread_count`
+  - [Destructor](docs/en-US/affinity_thread_pool.md#destructor)
 
 ## Notes
 - The library relies on `noexcept` guarantees and atomic `wait`/`notify` (C++20/C++23 primitives).

@@ -149,6 +149,7 @@ ctest --test-dir build
 
 ## 文档
 - [ThreadPool 类 (API)](thread_pool.md)
+- [AffinityThreadPool (API)](affinity_thread_pool.md)
 - [Task 概念 & DefaultTask](task.md)
 - [TaskQueue 概念 & DefaultQueue](task_queue.md)
 - [Policy 概念 & DefaultPolicy](policy.md)
@@ -176,6 +177,16 @@ cmake --build build --target thread-pool-docs
     - `task_queue`
     - `get_thread_allocator`
   - [析构函数](thread_pool.md#析构函数)
+
+- [AffinityThreadPool](affinity_thread_pool.md)
+  - [构造函数](affinity_thread_pool.md#构造函数)
+  - [主要 API](affinity_thread_pool.md#主要-api)
+    - `start`
+    - `get_thread_reference`
+    - `join_all_threads`
+    - `max_thread_count`
+    - `thread_count`
+  - [析构函数](affinity_thread_pool.md#析构函数)
 
 ## 注意事项
 - 该库依赖于 `noexcept` 保证和原子 `wait`/`notify`（C++20/C++23 原语）。
