@@ -16,12 +16,14 @@
   - Checks whether `queue.dequeue(ret)` is `noexcept`.
   - The concept does not constrain the return type; implementations commonly return `bool`.
 
-- `nothrow_bulk_dequeueable<Queue, Ret>`
-  - Checks whether `queue.dequeue_bulk(std::span<Ret>)` is `noexcept`.
+- `nothrow_bulk_dequeueable<Queue, Ret, Extent>`
+  - Checks whether `queue.dequeue_bulk(std::span<Ret, Extent>)` is `noexcept`.
   - The concept does not constrain the return type; implementations commonly return a count (e.g., `std::size_t`).
+  - If `Queue::dequeue_bulk_size` is defined and effective, it specifies the size of the span. Otherwise, a default size based on cache line size is used. For runtime-determined bulk sizes, `Extent` will be set to `std::dynamic_extent`.
 
-- `thread_pool::task_queue<Queue, Task>`
+- `thread_pool::task_queue<Queue, Task, Extent>`
   - A type is a `task_queue` for `Task` if `Task` satisfies [`thread_pool::task`](task.md#task-concept) and the `Queue` supports either `nothrow_dequeueable` or `nothrow_bulk_dequeueable` for `Task`.
+  - The `Extent` parameter is used to specify the extent for bulk dequeue operations when checking the `nothrow_bulk_dequeueable` concept.
 
 ## DefaultQueue\<T>
 Default, mutex-protected queue implementation parameterized with `T`:

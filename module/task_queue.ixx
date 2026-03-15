@@ -17,6 +17,7 @@ import thread_pool.task;
 #include <memory>
 #include <memory_resource>
 #include <mutex>
+#include <new>
 #include <queue>
 #include <span>
 #include <type_traits>
@@ -33,7 +34,7 @@ namespace thread_pool {
  */
 export template <typename Queue, typename... Args>
 concept nothrow_enqueueable = requires(Queue queue, Args&&... args) {
-  { queue.enqueue(std::forward<Args>(args)...) } noexcept -> std::same_as<bool>;
+  { std::forward<Queue>(queue).enqueue(std::forward<Args>(args)...) } noexcept -> std::same_as<bool>;
 };
 
 /**
@@ -48,48 +49,62 @@ concept nothrow_enqueueable = requires(Queue queue, Args&&... args) {
  */
 export template <typename Queue, typename... Args>
 concept nothrow_bulk_enqueueable = requires(Queue queue, Args&&... args) {
-  { queue.enqueue_bulk(std::forward<Args>(args)...) } noexcept -> std::same_as<bool>;
+  { std::forward<Queue>(queue).enqueue_bulk(std::forward<Args>(args)...) } noexcept -> std::same_as<bool>;
 };
 
 /**
  * @brief Concept to check if a queue supports nothrow dequeue operation
  * @tparam Queue The queue type to check
  * @tparam Ret The argument type for the dequeue method
- * @note This concept checks only that queue.dequeue(ret) is noexcept.
+ * @note This concept checks only that `queue.dequeue(ret)` is `noexcept`.
  *       The return value is intentionally not constrained by the concept because
  *       some queue implementations may have different return conventions.
  */
 export template <typename Queue, typename Ret>
 concept nothrow_dequeueable = requires(Queue queue, Ret& ret) {
-  { (void)queue.dequeue(ret) } noexcept;
+  { (void)std::forward<Queue>(queue).dequeue(ret) } noexcept;
 };
 
 /**
  * @brief Concept to check if a queue supports nothrow bulk dequeue operation
  * @tparam Queue The queue type to check
  * @tparam Ret The argument type for the dequeue_bulk method
- * @note The dequeue_bulk method receives a std::span of Ret type,
+ * @tparam Extent The extent of the span for the dequeue_bulk method, default is `std::dynamic_extent`
+ * @note The dequeue_bulk method receives a `std::span` of `Ret` type,
  *       which will be filled with the dequeued tasks.
  * @note The size of tasks span is the maximum number of tasks expected to dequeue,
  *       so the actual number of tasks dequeued may be less than or equal to that size.
+ * @note If `Queue::dequeue_bulk_size` is defined and effective, it specifies the size of the span.
+ *       Otherwise, a default size based on cache line size is used. For runtime-determined bulk sizes,
+ *       `Extent` will be set to `std::dynamic_extent`.
  * @note This concept checks only that `queue.dequeue_bulk(span)` is `noexcept`.
  *       The return value is intentionally not constrained by the concept.
  */
-export template <typename Queue, typename Ret>
-concept nothrow_bulk_dequeueable = requires(Queue queue, std::span<Ret, std::dynamic_extent> tasks) {
-  { (void)queue.dequeue_bulk(tasks) } noexcept;
+export template <typename Queue, typename Ret, std::size_t Extent = std::dynamic_extent>
+concept nothrow_bulk_dequeueable = requires(Queue queue, std::span<Ret, Extent> tasks) {
+  { (void)std::forward<Queue>(queue).dequeue_bulk(tasks) } noexcept;
 };
 
 /**
  * @brief Concept to check if a type is a valid task queue
  * @tparam Queue The queue type to check
- * @tparam Task The task type(s) to check, should satisfy thread_pool::task concept
+ * @tparam Task The task type(s) to check, should satisfy `thread_pool::task` concept
+ * @tparam Extent The extent used to specify the extent for bulk dequeue operations when checking the `nothrow_bulk_dequeueable` concept.
  * @note A valid task queue must support either nothrow dequeue or nothrow bulk dequeue operations.
  * @note The enqueue and enqueue_bulk operations are not checked here, as they are typically used
  *       when adding tasks to the queue, which is not a requirement for being a task queue.
  */
-export template <typename Queue, typename Task>
-concept task_queue = task<Task> && (nothrow_dequeueable<Queue, Task> || nothrow_bulk_dequeueable<Queue, Task>);
+export template <typename Queue, typename Task, std::size_t Extent = std::dynamic_extent>
+concept task_queue = task<Task> && (nothrow_dequeueable<std::add_lvalue_reference_t<Queue>, Task> || nothrow_bulk_dequeueable<std::add_lvalue_reference_t<Queue>, Task, Extent>);
+
+export template <typename Queue>
+constexpr std::size_t dequeue_bulk_size_v = (std::hardware_constructive_interference_size * CHAR_BIT) / 16;
+
+template <typename Queue> requires requires { static_cast<std::size_t>(Queue::dequeue_bulk_size); }
+constexpr std::size_t dequeue_bulk_size_v<Queue> = static_cast<std::size_t>(Queue::dequeue_bulk_size);
+
+template <typename Queue> requires (!std::same_as<Queue, std::remove_cvref_t<Queue>>)
+constexpr std::size_t dequeue_bulk_size_v<Queue> = dequeue_bulk_size_v<std::remove_cvref_t<Queue>>;
 
 template <typename T>
 concept nothrow_assign_destructible = requires(T a, T b) {
@@ -98,7 +113,7 @@ concept nothrow_assign_destructible = requires(T a, T b) {
 } && !std::is_reference_v<T> && !std::is_const_v<T> && std::is_nothrow_destructible_v<T>;
 
 /**
- * @brief Default task queue implementation using std::queue
+ * @brief Default task queue implementation using `std::queue`
  * @tparam T The task type to be stored in the queue
  */
 export template <nothrow_assign_destructible T>
@@ -124,7 +139,7 @@ class DefaultQueue {
    * @return size_type The number of tasks in the queue.
    */
   [[nodiscard]] constexpr size_type size() const noexcept {
-    std::lock_guard lock(lock_);
+    std::lock_guard lock{lock_};
     return tasks_.size();
   }
 
@@ -134,7 +149,7 @@ class DefaultQueue {
    * @return false If the queue is not empty.
    */
   [[nodiscard]] constexpr bool empty() const noexcept {
-    std::lock_guard lock(lock_);
+    std::lock_guard lock{lock_};
     return tasks_.empty();
   }
 
@@ -147,8 +162,8 @@ class DefaultQueue {
    */
   template <typename... Args> requires std::constructible_from<T, Args...>
   [[nodiscard]] constexpr bool enqueue(Args&&... args) noexcept {
-    std::lock_guard lock(lock_);
     try {
+      std::lock_guard lock{lock_};
       tasks_.emplace(std::forward<Args>(args)...);
     } catch (...) {
       return false;
@@ -163,7 +178,7 @@ class DefaultQueue {
    * @return false If the queue was empty and no task was dequeued.
    */
   [[nodiscard]] constexpr bool dequeue(T& ret) noexcept {
-    std::lock_guard lock(lock_);
+    std::lock_guard lock{lock_};
     if (tasks_.empty()) [[unlikely]] { return false; }
     ret = std::move_if_noexcept(tasks_.front());
     tasks_.pop();
@@ -178,7 +193,7 @@ class DefaultQueue {
    */
   template <std::size_t Extent> requires (Extent > 0 || Extent == std::dynamic_extent)
   [[nodiscard]] constexpr size_type dequeue_bulk(const std::span<T, Extent>& ret) noexcept {
-    std::lock_guard lock(lock_);
+    std::lock_guard lock{lock_};
     const size_type real = std::min(tasks_.size(), ret.size());
     if (!real) [[unlikely]] { return 0; }
     std::for_each_n(ret.begin(), real, [this](T& t) noexcept {

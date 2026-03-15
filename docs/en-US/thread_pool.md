@@ -11,7 +11,7 @@
 - `Task` (default: `thread_pool::DefaultTask`)
   - A type satisfying the `thread_pool::task` concept.
 - `TaskQueue` (default: `thread_pool::DefaultQueue<Task>`)
-  - `Task` storage and retrieval type; must satisfy `thread_pool::task_queue` concept for the `Task` type.
+  - `Task` storage and retrieval type; must satisfy `thread_pool::task_queue<TaskQueue, Task, std::dynamic_extent>` concept.
 - `Policy` (default: `thread_pool::DefaultPolicy`)
   - Optional hooks (`on_thread_start`, `on_thread_exit`, `on_pool_destroy`, `on_pool_stop`, `on_pool_shutdown`, `on_task_enqueue_failed`).
 - `ThreadAllocator` (default: `std::allocator<std::stop_source>`)
@@ -29,6 +29,20 @@
   template <typename... Queue> requires std::constructible_from<TaskQueue, Queue...> && std::is_default_constructible_v<Policy>
   constexpr explicit ThreadPool(Queue &&...args) noexcept(/*noex*/);
   ```
+
+- Construct with separate argument tuples for `TaskQueue`, `Policy`, and `ThreadAllocator` (in that order).
+  ```cpp
+  template <tuple_like QueueArgs, tuple_like PolicyArgs = std::tuple<>, tuple_like ThreadAllocatorArgs = std::tuple<>>
+    requires can_make_from_tuple<TaskQueue, QueueArgs> && can_make_from_tuple<Policy, PolicyArgs> && can_make_from_tuple<thread_allocator_type, ThreadAllocatorArgs>
+  constexpr explicit ThreadPool(QueueArgs &&queue_args, PolicyArgs &&policy_args = std::tuple{}, ThreadAllocatorArgs &&thread_allocator_args = std::tuple{}) noexcept(/*noex*/);
+  ```
+
+- Construct with default arguments.
+  ```cpp
+  constexpr ThreadPool() noexcept(std::is_nothrow_default_constructible_v<Policy> && std::is_nothrow_default_constructible_v<TaskQueue> && std::is_nothrow_default_constructible_v<ThreadAllocator>)
+    requires(std::is_default_constructible_v<Policy> && std::is_default_constructible_v<TaskQueue> && std::is_default_constructible_v<ThreadAllocator>) = default;
+  ```
+  It only participates in overload resolution if all three template parameters are default constructible.
 
 ## Primary methods
 - Submit one or more tasks.

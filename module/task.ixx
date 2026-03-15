@@ -9,7 +9,6 @@
  */
 
 module;
-#include <concepts>
 #include <functional>
 #include <memory>
 #include <type_traits>
@@ -25,7 +24,7 @@ namespace thread_pool {
  *       and be nothrow invocable, nothrow default constructible, and nothrow destructible.
  */
 export template <typename Task>
-concept task = std::is_nothrow_invocable_r_v<void, Task> && std::is_nothrow_default_constructible_v<Task> && std::is_nothrow_destructible_v<Task>;
+concept task = std::is_nothrow_invocable_r_v<void, std::add_lvalue_reference_t<Task>> && std::is_nothrow_default_constructible_v<Task> && std::is_nothrow_destructible_v<Task>;
 
 // Default task implementation using type erasure
 export class DefaultTask {
@@ -35,10 +34,10 @@ export class DefaultTask {
     virtual void call() noexcept = 0;
   };
 
-  template <typename F> requires (std::is_nothrow_invocable_r_v<void, std::decay_t<F>> && std::constructible_from<std::decay_t<F>, F> && std::is_nothrow_destructible_v<std::decay_t<F>>)
+  template <typename F> requires (std::is_nothrow_invocable_r_v<void, std::add_lvalue_reference_t<std::decay_t<F>>> && std::is_constructible_v<std::decay_t<F>, F> && std::is_nothrow_destructible_v<std::decay_t<F>>)
   struct DerivedStorage : Storage {
     std::decay_t<F> f_;
-    constexpr DerivedStorage(F&& f) noexcept(std::is_nothrow_constructible_v<std::decay_t<F>, F>) : f_(std::decay_t<F>(std::forward<F>(f))) {}
+    constexpr DerivedStorage(F&& f) noexcept(std::is_nothrow_constructible_v<std::decay_t<F>, F>) : f_{std::decay_t<F>(std::forward<F>(f))} {}
     ~DerivedStorage() noexcept override = default;
     void call() noexcept override { std::invoke(f_); }
   };
@@ -53,7 +52,7 @@ export class DefaultTask {
    * @note The callable object must be nothrow invocable and nothrow destructible.
    */
   template <typename F>
-  constexpr explicit DefaultTask(F&& f) : func_(std::make_unique<DerivedStorage<F>>(std::forward<F>(f))) {}
+  constexpr explicit DefaultTask(F&& f) : func_{std::make_unique<DerivedStorage<F>>(std::forward<F>(f))} {}
 
   constexpr DefaultTask() noexcept = default;
   DefaultTask(const DefaultTask&) = delete;

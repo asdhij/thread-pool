@@ -11,7 +11,7 @@
 - `Task`（默认：`thread_pool::DefaultTask`）
   - 满足 `thread_pool::task` 概念的类型。
 - `TaskQueue`（默认：`thread_pool::DefaultQueue<Task>`）
-  - `Task` 存储和检索类型；必须满足针对 `Task` 类型的 `thread_pool::task_queue` 概念。
+  - `Task` 存储和检索类型；必须满足 `thread_pool::task_queue<TaskQueue, Task, std::dynamic_extent>` 概念。
 - `Policy`（默认：`thread_pool::DefaultPolicy`）
   - 可选钩子（`on_thread_start`、`on_thread_exit`、`on_pool_destroy`、`on_pool_stop`、`on_pool_shutdown`、`on_task_enqueue_failed`）。
 - `ThreadAllocator`（默认：`std::allocator<std::stop_source>`）
@@ -29,6 +29,20 @@
   template <typename... Queue> requires std::constructible_from<TaskQueue, Queue...> && std::is_default_constructible_v<Policy>
   constexpr explicit ThreadPool(Queue &&...args) noexcept(/*noex*/);
   ```
+
+- 使用 `TaskQueue`、`Policy` 和 `ThreadAllocator` 的单独参数元组构造（按此顺序）。
+  ```cpp
+  template <tuple_like QueueArgs, tuple_like PolicyArgs = std::tuple<>, tuple_like ThreadAllocatorArgs = std::tuple<>>
+    requires can_make_from_tuple<TaskQueue, QueueArgs> && can_make_from_tuple<Policy, PolicyArgs> && can_make_from_tuple<thread_allocator_type, ThreadAllocatorArgs>
+  constexpr explicit ThreadPool(QueueArgs &&queue_args, PolicyArgs &&policy_args = std::tuple{}, ThreadAllocatorArgs &&thread_allocator_args = std::tuple{}) noexcept(/*noex*/);
+  ```
+
+- 使用默认参数构造。
+  ```cpp
+  constexpr ThreadPool() noexcept(std::is_nothrow_default_constructible_v<Policy> && std::is_nothrow_default_constructible_v<TaskQueue> && std::is_nothrow_default_constructible_v<ThreadAllocator>)
+    requires(std::is_default_constructible_v<Policy> && std::is_default_constructible_v<TaskQueue> && std::is_default_constructible_v<ThreadAllocator>) = default;
+  ```
+  仅当所有三个模板参数都可默认构造时才参与重载解析。
 
 ## 主要方法
 - 提交一个或多个任务。

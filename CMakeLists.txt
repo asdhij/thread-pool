@@ -4,7 +4,7 @@
 # Root CMakeLists.txt - Thread Pool Library Project Configuration
 cmake_minimum_required(VERSION 3.28.0)
 project(thread-pool
-  VERSION 1.0.0
+  VERSION 1.1.0
   DESCRIPTION "A compact, cross-platform thread pool library written for C++23 using modules and dependency injection. The design emphasizes flexibility, zero-cost abstractions where possible, and safe, explicit semantics."
   HOMEPAGE_URL "https://github.com/asdhij/thread-pool"
   LANGUAGES CXX

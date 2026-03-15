@@ -16,12 +16,14 @@
   - 检查 `queue.dequeue(ret)` 是否为 `noexcept`。
   - 该概念不约束返回类型；实现通常返回 `bool`。
 
-- `nothrow_bulk_dequeueable<Queue, Ret>`
-  - 检查 `queue.dequeue_bulk(std::span<Ret>)` 是否为 `noexcept`。
+- `nothrow_bulk_dequeueable<Queue, Ret, Extent>`
+  - 检查 `queue.dequeue_bulk(std::span<Ret, Extent>)` 是否为 `noexcept`。
   - 该概念不约束返回类型；实现通常返回一个计数（例如 `std::size_t`）。
+  - 如果 `Queue::dequeue_bulk_size` 已定义且有效，则它指定了 span 的大小。否则，使用基于缓存行大小的默认大小。对于运行时确定的批量大小，`Extent` 将设置为 `std::dynamic_extent`。
 
-- `thread_pool::task_queue<Queue, Task>`
+- `thread_pool::task_queue<Queue, Task, Extent>`
   - 如果 `Task` 满足 [`thread_pool::task`](task.md#task-概念) 概念，并且 `Queue` 支持针对 `Task` 的 `nothrow_dequeueable` 或 `nothrow_bulk_dequeueable`，则该类型是 `Task` 的 `task_queue`。
+  - `Extent` 参数用于在检查 `nothrow_bulk_dequeueable` 概念时指定批量出队操作的范围。
 
 ## DefaultQueue\<T>
 使用 `T` 参数化的默认互斥锁保护队列实现：
