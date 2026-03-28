@@ -18,4 +18,5 @@ endfunction()
 # Add test executables for each component
 add_component_test(task)
 add_component_test(task_queue)
-add_component_test(main)
+add_component_test(thread_pool)
+add_component_test(affinity_thread_pool)

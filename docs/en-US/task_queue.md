@@ -25,6 +25,9 @@
   - A type is a `task_queue` for `Task` if `Task` satisfies [`thread_pool::task`](task.md#task-concept) and the `Queue` supports either `nothrow_dequeueable` or `nothrow_bulk_dequeueable` for `Task`.
   - The `Extent` parameter is used to specify the extent for bulk dequeue operations when checking the `nothrow_bulk_dequeueable` concept.
 
+- `thread_pool::thread_local_task_queue<Queue>`
+  - Indicates a queue type intended to be owned by a single worker thread and supporting the minimal interface required by affinity-style pools: a `process_tasks()` method (nothrow) and a `wait_for_task()` method (nothrow -> `bool`) that blocks until work or stop is requested.
+
 ## DefaultQueue\<T>
 Default, mutex-protected queue implementation parameterized with `T`:
 
@@ -78,6 +81,24 @@ Default, mutex-protected queue implementation parameterized with `T`:
 - Protects operations with `std::mutex`; suitable for general-purpose use. If you need a lock-free or specialized queue, implement the required concepts.
 - All public methods are `constexpr` where possible and marked `noexcept` according to operations they perform.
 
+## DefaultThreadLocalQueue\<T>
+
+The library also provides `DefaultThreadLocalQueue<T>`, a simple thread-local queue intended to be owned by a single worker thread. For thread-local queues the framework expects two operations:
+
+- `process_tasks()` — execute pending tasks (nothrow).
+- `wait_for_task()` — block until work is available or a stop is requested; return `true` when tasks are available, `false` to indicate the caller should exit (nothrow -> `bool`).
+
+Additionally, a thread-local queue SHOULD provide an `initialize(...)` callable returning a value convertible to `bool` to indicate successful initialization.
+
+`DefaultThreadLocalQueue<T>` implements these behaviors:
+- `constexpr bool initialize() noexcept` — default returns `true`.
+- `enqueue(Args&&...) noexcept` — in-place construct a task and notify the waiter; returns `false` if stop requested or on allocation/construct failure.
+- `process_tasks() noexcept` — execute and pop all queued tasks (caller must be the owner thread).
+- `wait_for_task() noexcept -> bool` — blocks on a condition variable until tasks are available or a stop is requested; returns `true` when tasks exist.
+- `notify_for_stop() noexcept` — mark the queue as stopping and wake waiters.
+
+The implementation uses `std::pmr::unsynchronized_pool_resource` for storage and a `std::condition_variable` for blocking waits used by worker threads.
+
 ## Custom queue example
 ```cpp
 struct CustomQueue {
@@ -92,3 +113,12 @@ The above `CustomQueue` wraps `DefaultQueue<SimpleTask>` and satisfies the `task
 
 ## Bulk enqueue
 When your queue supports `enqueue_bulk` and it is `noexcept`, `ThreadPool::submit` will use the bulk path for multiple arguments (faster and does one atomic enqueue).
+
+### Bulk dequeue size constant
+The implementation exposes a default bulk dequeue size constant used when a queue does not provide `dequeue_bulk_size`:
+
+```cpp
+constexpr std::size_t dequeue_bulk_size_v = (std::hardware_constructive_interference_size * CHAR_BIT) / 16;
+```
+
+If a queue defines an effective `Queue::dequeue_bulk_size`, that value is used instead.

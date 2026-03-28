@@ -25,6 +25,9 @@
   - 如果 `Task` 满足 [`thread_pool::task`](task.md#task-概念) 概念，并且 `Queue` 支持针对 `Task` 的 `nothrow_dequeueable` 或 `nothrow_bulk_dequeueable`，则该类型是 `Task` 的 `task_queue`。
   - `Extent` 参数用于在检查 `nothrow_bulk_dequeueable` 概念时指定批量出队操作的范围。
 
+- `thread_pool::thread_local_task_queue<Queue>`
+  - 表示一种由单个工作线程拥有的队列类型，适用于亲和性风格的池；需要提供最小接口：`process_tasks()`（无异常）和 `wait_for_task()`（无异常 -> `bool`），后者在有工作或请求停止时返回。
+
 ## DefaultQueue\<T>
 使用 `T` 参数化的默认互斥锁保护队列实现：
 
@@ -78,6 +81,24 @@
 - 使用 `std::mutex` 保护操作；适用于通用用途。如果您需要无锁或专用队列，请实现所需的概念。
 - 所有公共方法在可能的情况下都是 `constexpr`，并根据其执行的操作标记为 `noexcept`。
 
+## DefaultThreadLocalQueue\<T>
+
+该库还提供了 `DefaultThreadLocalQueue<T>`，一个简单的线程本地队列，旨在由单个工作线程拥有。对于线程本地队列，框架期望两个操作：
+
+- `process_tasks()` — 执行待处理的任务（无异常抛出）。
+- `wait_for_task()` — 阻塞直到有工作可用或请求停止；当有任务时返回 `true`，`false` 表示调用者应退出（无异常抛出 -> `bool`）。
+
+此外，线程本地队列应提供一个 `initialize(...)` 可调用对象，返回一个可转换为 `bool` 的值以指示初始化成功。
+
+`DefaultThreadLocalQueue<T>` 实现了这些行为：
+- `constexpr bool initialize() noexcept` — 默认返回 `true`。
+- `enqueue(Args&&...) noexcept` — 原地构造一个任务并通知等待者；如果请求停止或分配/构造失败，返回 `false`。
+- `process_tasks() noexcept` — 执行并弹出所有排队的任务（调用者必须是拥有者线程）。
+- `wait_for_task() noexcept -> bool` — 在条件变量上阻塞，直到有任务可用或请求停止；存在任务时返回 `true`。
+- `notify_for_stop() noexcept` — 将队列标记为停止并唤醒等待者。
+
+该实现使用 `std::pmr::unsynchronized_pool_resource` 进行存储，并使用 `std::condition_variable` 实现工作线程的阻塞等待。
+
 ## 自定义队列示例
 ```cpp
 struct CustomQueue {
@@ -92,3 +113,12 @@ thread_pool::ThreadPool<SimpleTask, CustomQueue> pool;
 
 ## 批量入队
 当您的队列支持 `noexcept` 的 `enqueue_bulk` 时，`ThreadPool::submit` 将对多个参数使用批量路径（更快且执行一次原子性入队）。
+
+### 批量出队大小常量
+该实现暴露了一个默认的批量出队大小常量，当队列未提供 `dequeue_bulk_size` 时使用：
+
+```cpp
+constexpr std::size_t dequeue_bulk_size_v = (std::hardware_constructive_interference_size * CHAR_BIT) / 16;
+```
+
+如果队列定义了一个有效的 `Queue::dequeue_bulk_size`，则使用该值。

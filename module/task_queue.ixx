@@ -12,8 +12,10 @@ module;
 import thread_pool.task;
 #include <algorithm>
 #include <concepts>
+#include <condition_variable>
 #include <cstddef>
 #include <deque>
+#include <functional>
 #include <memory>
 #include <memory_resource>
 #include <mutex>
@@ -96,6 +98,44 @@ concept nothrow_bulk_dequeueable = requires(Queue queue, std::span<Ret, Extent> 
  */
 export template <typename Queue, typename Task, std::size_t Extent = std::dynamic_extent>
 concept task_queue = task<Task> && (nothrow_dequeueable<std::add_lvalue_reference_t<Queue>, Task> || nothrow_bulk_dequeueable<std::add_lvalue_reference_t<Queue>, Task, Extent>);
+
+/**
+ * @brief Concept to check if a queue is a thread-local task queue.
+ * @tparam Queue The queue type to check.
+ *
+ * @details
+ * A thread-local task queue is intended to be owned by a single worker thread.
+ * The framework requires only two operations from such a queue:
+ * - `process_tasks()` (nothrow): called by the owning thread to execute all
+ *   pending tasks without blocking.
+ * - `wait_for_task()` (nothrow -> bool): block the caller until a task is
+ *   available or a stop condition is requested; returns `true` when tasks are
+ *   available and the caller should attempt to process them, or `false` when
+ *   the caller should exit (for example when shutting down).
+ *
+ * This concept intentionally does NOT require enqueue/bulk-enqueue
+ * (`nothrow_enqueueable` / `nothrow_bulk_enqueueable`), size/empty observers,
+ * or an explicit stop/notify method. Those operations are implementation
+ * details left to the user: the framework does not call them and therefore
+ * does not impose requirements on their signatures or exception-safety.
+ *
+ * Additionally, the user SHOULD provide an nothrow `initialize` callable/function for
+ * the queue. The framework requires only that the return value of
+ * `initialize(...)` is convertible to `bool` via `static_cast<bool>`; a value
+ * that converts to `true` indicates successful initialization. This concept
+ * does not check `initialize` because the parameter types for initialization
+ * can only be determined when a thread is being added (when initialization
+ * arguments are supplied). The actual validation of `initialize` will therefore
+ * be performed at the point where threads are created/registered by the
+ * framework.
+ *
+ * @see `nothrow_enqueueable`, `nothrow_bulk_enqueueable`, `nothrow_dequeueable`, `nothrow_bulk_dequeueable`, and `task_queue`.
+ */
+export template <typename Queue>
+concept thread_local_task_queue = requires(Queue queue) {
+  { (void)std::forward<Queue>(queue).process_tasks() } noexcept;
+  { std::forward<Queue>(queue).wait_for_task() } noexcept -> std::same_as<bool>;
+};
 
 export template <typename Queue>
 constexpr std::size_t dequeue_bulk_size_v = (std::hardware_constructive_interference_size * CHAR_BIT) / 16;
@@ -209,6 +249,110 @@ class DefaultQueue {
   std::pmr::unsynchronized_pool_resource resource_;
   std::queue<T, std::deque<T, allocator_type>> tasks_{&resource_};
   mutable std::mutex lock_;
+};
+
+/**
+ * @brief A thread-local queue for managing tasks.
+ * @tparam T The task type to be stored in the queue
+ */
+export template <nothrow_assign_destructible T>
+class DefaultThreadLocalQueue {
+ public:
+  using value_type = T;
+  using allocator_type = std::pmr::polymorphic_allocator<T>;
+  using size_type = std::size_t;
+  using reference = value_type&;
+  using const_reference = const value_type&;
+  using pointer = std::allocator_traits<allocator_type>::pointer;
+  using const_pointer = std::allocator_traits<allocator_type>::const_pointer;
+
+  constexpr DefaultThreadLocalQueue() noexcept = default;
+
+  DefaultThreadLocalQueue(const DefaultThreadLocalQueue&) = delete;
+  DefaultThreadLocalQueue(DefaultThreadLocalQueue&&) noexcept = delete;
+  DefaultThreadLocalQueue& operator=(const DefaultThreadLocalQueue&) = delete;
+  DefaultThreadLocalQueue& operator=(DefaultThreadLocalQueue&&) = delete;
+
+  consteval bool initialize() noexcept { return true; }
+
+  /**
+   * @brief Returns the number of tasks currently in the queue.
+   * @return size_type The number of tasks in the queue.
+   */
+  [[nodiscard]] constexpr size_type size() const noexcept {
+    std::lock_guard lock{lock_};
+    return tasks_.size();
+  }
+
+  /**
+   * @brief Checks if the queue is empty.
+   * @return true If the queue is empty.
+   * @return false If the queue is not empty.
+   */
+  [[nodiscard]] constexpr bool empty() const noexcept {
+    std::lock_guard lock{lock_};
+    return tasks_.empty();
+  }
+
+  /**
+   * @brief Enqueues a new task into the queue.
+   * @tparam Args The types of arguments to construct the task.
+   * @param args The arguments to construct the task.
+   * @return true If the task was enqueued successfully.
+   * @return false If memory allocation fails or if T's construction throws.
+   */
+  template <typename... Args> requires std::constructible_from<T, Args...>
+  [[nodiscard]] constexpr bool enqueue(Args&&... args) noexcept {
+    try {
+      std::lock_guard lock{lock_};
+      if (stop_requested_) [[unlikely]] { return false; }
+      tasks_.emplace(std::forward<Args>(args)...);
+    } catch (...) {
+      return false;
+    }
+    cv_.notify_one();
+    return true;
+  }
+
+  /**
+   * @brief Processes all tasks in the queue.
+   * @note This function should be called by the thread that owns this thread-local queue.
+   */
+  void process_tasks() noexcept {
+    std::lock_guard lock{lock_};
+    while (!tasks_.empty()) {
+      std::invoke(tasks_.front());
+      tasks_.pop();
+    }
+  }
+
+  /**
+   * @brief Block until there is a task available or a stop is requested.
+   * @return true if a task is available and the caller should attempt to process it.
+   *         false if the caller should exit (stop requested and no task).
+   */
+  [[nodiscard]] constexpr bool wait_for_task() noexcept {
+    std::unique_lock lock{lock_};
+    cv_.wait(lock, [this] noexcept { return !tasks_.empty() || stop_requested_; });
+    return !tasks_.empty();
+  }
+
+  /// @brief Notify waiting threads to re-evaluate their wait predicates (used when stopping).
+  constexpr void notify_for_stop() noexcept {
+    lock_.lock();
+    stop_requested_ = true;
+    lock_.unlock();
+    cv_.notify_all();
+  }
+
+  constexpr ~DefaultThreadLocalQueue() noexcept = default;
+
+ private:
+  std::pmr::unsynchronized_pool_resource resource_;
+  std::queue<T, std::deque<T, allocator_type>> tasks_{&resource_};
+  mutable std::mutex lock_;
+  bool stop_requested_{false};
+  std::condition_variable cv_;
 };
 
 }  // namespace thread_pool
