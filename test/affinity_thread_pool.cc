@@ -16,6 +16,7 @@
 
 import thread_pool.affinity_pool;
 import thread_pool.task;
+
 #include <gtest/gtest.h>
 
 #include <atomic>

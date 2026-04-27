@@ -9,7 +9,12 @@
  */
 
 import thread_pool.task;
+
 #include <gtest/gtest.h>
+
+#include <memory>
+#include <type_traits>
+#include <utility>
 
 namespace {
 
