@@ -8,12 +8,8 @@
  * @date 2025-10-31
  */
 
-module;
-#include <concepts>
-#include <functional>
-#include <type_traits>
-#include <utility>
 export module thread_pool.policy;
+import std;
 
 namespace thread_pool {
 

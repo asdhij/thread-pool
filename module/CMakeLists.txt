@@ -16,5 +16,9 @@ target_sources(${PROJECT_NAME} PUBLIC FILE_SET CXX_MODULES FILES
   thread_pool.ixx
 )
 target_link_libraries(${PROJECT_NAME} PUBLIC Threads::Threads)
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
+set_target_properties(${PROJECT_NAME} PROPERTIES CXX_MODULE_STD ON)
 
-add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+if (NOT PROJECT_IS_TOP_LEVEL)
+  add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+endif()

@@ -14,26 +14,12 @@
  * @date 2026-02-25
  */
 
-module;
+export module thread_pool.affinity_pool;
+import std;
 import thread_pool;
 import thread_pool.policy;
 import thread_pool.queue;
 import thread_pool.task;
-#include <atomic>
-#include <compare>
-#include <concepts>
-#include <cstddef>
-#include <expected>
-#include <limits>
-#include <memory>
-#include <new>
-#include <system_error>
-#include <thread>
-#include <tuple>
-#include <type_traits>
-#include <utility>
-#include <vector>
-export module thread_pool.affinity_pool;
 
 namespace thread_pool {
 

@@ -8,23 +8,9 @@
  * @date 2025-10-03
  */
 
-module;
-import thread_pool.task;
-#include <algorithm>
-#include <concepts>
-#include <condition_variable>
-#include <cstddef>
-#include <deque>
-#include <functional>
-#include <memory>
-#include <memory_resource>
-#include <mutex>
-#include <new>
-#include <queue>
-#include <span>
-#include <type_traits>
-#include <utility>
 export module thread_pool.queue;
+import std;
+import thread_pool.task;
 
 namespace thread_pool {
 
@@ -138,7 +124,7 @@ concept thread_local_task_queue = requires(Queue queue) {
 };
 
 export template <typename Queue>
-constexpr std::size_t dequeue_bulk_size_v = (std::hardware_constructive_interference_size * CHAR_BIT) / 16;
+constexpr std::size_t dequeue_bulk_size_v = (std::hardware_constructive_interference_size * std::numeric_limits<unsigned char>::digits) / 16;
 
 template <typename Queue> requires requires { static_cast<std::size_t>(Queue::dequeue_bulk_size); }
 constexpr std::size_t dequeue_bulk_size_v<Queue> = static_cast<std::size_t>(Queue::dequeue_bulk_size);
