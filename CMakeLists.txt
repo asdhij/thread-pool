@@ -4,12 +4,6 @@
 # Root CMakeLists.txt - Thread Pool Library Project Configuration
 cmake_minimum_required(VERSION 3.30)
 
-# Set C++ standard to 23 if not already set or if current standard is lower
-if (NOT CMAKE_CXX_STANDARD OR CMAKE_CXX_STANDARD LESS 23)
-  set(CMAKE_CXX_STANDARD 23)
-endif()
-
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES ON)  # Enable C++ module support
 if (NOT DEFINED CMAKE_CXX_EXTENSIONS)
   set(CMAKE_CXX_EXTENSIONS OFF)     # Disable compiler-specific extensions
@@ -24,10 +18,10 @@ project(thread-pool
   LANGUAGES CXX
 )
 
-option(THREAD_POOL_BUILD_TESTS "Build tests" ON)  # Option to build tests (enabled by default)
+option(THREAD_POOL_BUILD_TESTS "Build tests" OFF)  # Option to build tests (disabled by default)
 
-# Add library modules (EXCLUDE_FROM_ALL prevents building by default)
-add_subdirectory(module EXCLUDE_FROM_ALL)
+# Add library modules
+add_subdirectory(module)
 if (PROJECT_IS_TOP_LEVEL)
   add_subdirectory(cmake)
 endif()
