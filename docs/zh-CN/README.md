@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](../../LICENSE)
 [![C++ Standard](https://img.shields.io/badge/C%2B%2B-23-blue)](https://en.cppreference.com/w/cpp/23)
-![Star Badge](https://img.shields.io/github/stars/asdhij/thread-pool)
+![Star Badge](https://img.shields.io/github/stars/Millforge/thread-pool)
 
 [English](../../README.md)
 
@@ -80,7 +80,7 @@ thread-pool 是一个紧凑、跨平台的线程池库，使用 C++23 的模块�
 
 #### 1. 将仓库添加为子模块：
 ```bash
-git submodule add https://github.com/asdhij/thread-pool.git external/thread-pool
+git submodule add https://github.com/Millforge/thread-pool.git external/thread-pool
 ```
 在您的 `CMakeLists.txt` 中：
 ```cmake
@@ -91,7 +91,7 @@ target_link_libraries(your-target PRIVATE thread-pool::thread-pool)
 #### 2. 安装并使用 `find_package`
 - 将库安装到您的系统或打包前缀（在项目中提供 CMake 安装步骤）。
 ```bash
-git clone https://github.com/asdhij/thread-pool.git
+git clone https://github.com/Millforge/thread-pool.git
 cd thread-pool
 cmake -B build -S . -DCMAKE_INSTALL_PREFIX=/usr/local -G Ninja
 cmake --build build
@@ -109,7 +109,7 @@ target_link_libraries(your-target PRIVATE thread-pool::thread-pool)
 include(FetchContent)
 FetchContent_Declare(
   thread-pool
-  GIT_REPOSITORY https://github.com/asdhij/thread-pool.git
+  GIT_REPOSITORY https://github.com/Millforge/thread-pool.git
   GIT_TAG        main  # 这将始终从 `main` 分支拉取最新代码。您也可以使用特定的发布版本或标签
 )
 FetchContent_MakeAvailable(thread-pool)
@@ -122,7 +122,7 @@ target_link_libraries(your-target PRIVATE thread-pool::thread-pool)
 include(CPM.cmake)  # 确保包含了 CPM.cmake
 CPMAddPackage(
   NAME thread-pool
-  GITHUB_REPOSITORY asdhij/thread-pool
+  GITHUB_REPOSITORY Millforge/thread-pool
   GIT_TAG           main  # 使用特定的标签或提交以保证稳定性
 )
 target_link_libraries(your-target PRIVATE thread-pool::thread-pool)

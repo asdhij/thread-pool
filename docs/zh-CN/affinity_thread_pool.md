@@ -1,4 +1,3 @@
-
 # AffinityThreadPool — 每个工作线程本地队列
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](../../LICENSE)

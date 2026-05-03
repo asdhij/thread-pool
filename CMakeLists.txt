@@ -14,7 +14,7 @@ include(cmake/SetupImportStd.cmake)
 project(thread-pool
   VERSION 1.2.0
   DESCRIPTION "A compact, cross-platform thread pool library written for C++23 using modules and dependency injection. The design emphasizes flexibility, zero-cost abstractions where possible, and safe, explicit semantics."
-  HOMEPAGE_URL "https://github.com/asdhij/thread-pool"
+  HOMEPAGE_URL "https://github.com/Millforge/thread-pool"
   LANGUAGES CXX
 )
 

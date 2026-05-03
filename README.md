@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![C++ Standard](https://img.shields.io/badge/C%2B%2B-23-blue)](https://en.cppreference.com/w/cpp/23)
-![Star Badge](https://img.shields.io/github/stars/asdhij/thread-pool)
+![Star Badge](https://img.shields.io/github/stars/Millforge/thread-pool)
 
 [简体中文](docs/zh-CN/README.md)
 
@@ -80,7 +80,7 @@ The implementation favors `noexcept` operations and clearly defines where hooks 
 
 #### 1. Add the repository as a submodule:
 ```bash
-git submodule add https://github.com/asdhij/thread-pool.git external/thread-pool
+git submodule add https://github.com/Millforge/thread-pool.git external/thread-pool
 ```
 In your `CMakeLists.txt`:
 ```cmake
@@ -91,7 +91,7 @@ target_link_libraries(your-target PRIVATE thread-pool::thread-pool)
 #### 2. Install and use `find_package`
 - Install the library to your system or packaging prefix (provide a CMake install step in the project).
 ```bash
-git clone https://github.com/asdhij/thread-pool.git
+git clone https://github.com/Millforge/thread-pool.git
 cd thread-pool
 cmake -B build -S . -DCMAKE_INSTALL_PREFIX=/usr/local -G Ninja
 cmake --build build
@@ -109,7 +109,7 @@ In your `CMakeLists.txt`:
 include(FetchContent)
 FetchContent_Declare(
   thread-pool
-  GIT_REPOSITORY https://github.com/asdhij/thread-pool.git
+  GIT_REPOSITORY https://github.com/Millforge/thread-pool.git
   GIT_TAG        main  # This will always pull the latest code from the `main` branch. You may also use a specific release version or tag
 )
 FetchContent_MakeAvailable(thread-pool)
@@ -122,7 +122,7 @@ In your `CMakeLists.txt`:
 include(CPM.cmake)  # ensure CPM.cmake is included
 CPMAddPackage(
   NAME thread-pool
-  GITHUB_REPOSITORY asdhij/thread-pool
+  GITHUB_REPOSITORY Millforge/thread-pool
   GIT_TAG           main  # use a specific tag or commit for stability
 )
 target_link_libraries(your-target PRIVATE thread-pool::thread-pool)
