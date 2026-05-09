@@ -9,9 +9,9 @@
  */
 
 import thread_pool;
-import thread_pool.task;
-import thread_pool.queue;
 import thread_pool.policy;
+import thread_pool.queue;
+import thread_pool.task;
 
 #include <gtest/gtest.h>
 
@@ -281,7 +281,6 @@ class ThreadPoolConcurrencyTest : public ::testing::Test {
   }
 
   thread_pool::ThreadPool<> pool_;
-  std::atomic<int> task_counter{0};
   std::atomic<int> completion_counter{0};
 };
 
@@ -297,8 +296,7 @@ TEST_F(ThreadPoolConcurrencyTest, ConcurrentTaskSubmission) {
   for (int p = 0; p < num_producers; ++p) {
     producers.emplace_back([this] {
       for (int i = 0; i < tasks_per_producer; ++i) {
-        int task_id = task_counter.fetch_add(1, std::memory_order_relaxed);
-        pool_.submit([this, task_id]() noexcept { completion_counter.fetch_add(1, std::memory_order_relaxed); });
+        pool_.submit([this]() noexcept { completion_counter.fetch_add(1, std::memory_order_relaxed); });
       }
     });
   }
@@ -382,8 +380,6 @@ TEST_F(ThreadPoolConcurrencyTest, StressTest) {
   // Wait for all tasks to complete
   while (completed.load() < total_tasks && std::chrono::steady_clock::now() - start < std::chrono::seconds(10)) { std::this_thread::sleep_for(std::chrono::milliseconds(10)); }
 
-  auto end = std::chrono::steady_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
   EXPECT_EQ(completed.load(), total_tasks);
   EXPECT_EQ(pool_.thread_count(), 8);

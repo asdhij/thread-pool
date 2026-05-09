@@ -8,12 +8,8 @@
  * @date 2025-10-18
  */
 
-module;
-#include <functional>
-#include <memory>
-#include <type_traits>
-#include <utility>
 export module thread_pool.task;
+import std;
 
 namespace thread_pool {
 

@@ -56,11 +56,27 @@ thread-pool 是一个紧凑、跨平台的线程池库，使用 C++23 的模块�
 
 ### 先决条件
 
-- C++23 兼容编译器（GCC 13+、Clang 16+、MSVC 2022 17.8+）。
-- CMake 3.28+（用于构建）。
+- C++23 兼容编译器（GCC 15+、Clang 17+、MSVC 19.36+（Visual Studio 2022 17.6+））。
+- CMake 3.30+（用于构建）。
 - 支持 C++20 模块的 CMake 生成器，例如 **Ninja**（Visual Studio 和 Unix Makefiles 在某些版本中可能存在模块依赖性问题）。
 
 ### 集成方法
+
+> **重要：** 由于此库使用了 `import std`，您必须在 `CXX` 被启用（通常是 `project()` 调用）*之前*启用 CMake 的实验性 `import std` 支持，否则会遇到类似以下错误：
+> `Experimental import std support not enabled when detecting toolchain; it must be set before CXX is enabled (usually a project() call)`。
+>
+> 您可以通过以下两种方式之一启用：
+>
+> - **包含辅助脚本**（仓库内附带），在顶层 `CMakeLists.txt` 中*一次性*加入，放在第一个 `project()` 调用*之前*：
+>   ```cmake
+>   include(path/to/thread-pool/cmake/SetupImportStd.cmake)
+>   ```
+>   此脚本将自动设置与您的 CMake 版本匹配的 UUID。
+>
+> - **手动设置变量**，放在第一个 `project()` 调用*之前*。请查阅 [CMake 文档](https://github.com/Kitware/CMake/blob/master/Help/dev/experimental.rst#c-import-std-support) 获取与您的 CMake 版本匹配的 UUID，然后使用：
+>   ```cmake
+>   set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "<UUID for your CMake version>")
+>   ```
 
 #### 1. 将仓库添加为子模块：
 ```bash
@@ -78,6 +94,7 @@ target_link_libraries(your-target PRIVATE thread-pool::thread-pool)
 git clone https://github.com/asdhij/thread-pool.git
 cd thread-pool
 cmake -B build -S . -DCMAKE_INSTALL_PREFIX=/usr/local -G Ninja
+cmake --build build
 cmake --install build  # 注意：对于系统目录可能需要 `sudo`
 ```
 - 在您的 `CMakeLists.txt` 中：
@@ -178,7 +195,7 @@ cmake --build build --target thread-pool-docs
     - `get_thread_allocator`
   - [析构函数](thread_pool.md#析构函数)
 
-- [AffinityThreadPool](affinity_thread_pool.md)
+- [AffinityThreadPool](affinity_thread_pool.md) (模板)
   - [构造函数](affinity_thread_pool.md#构造函数)
   - [主要 API](affinity_thread_pool.md#主要-api)
     - `start`

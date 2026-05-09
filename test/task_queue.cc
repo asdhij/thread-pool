@@ -10,12 +10,19 @@
 
 import thread_pool.queue;
 import thread_pool.task;
+
 #include <gtest/gtest.h>
 
+#include <array>
 #include <atomic>
 #include <chrono>
+#include <cstddef>
+#include <memory>
 #include <random>
+#include <span>
 #include <thread>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -90,20 +97,20 @@ TEST(DefaultQueueTest, MultipleEnqueueDequeue) {
 
 TEST(DefaultQueueTest, BulkDequeue) {
   thread_pool::DefaultQueue<int> queue;
-  constexpr size_t bulk_size = 5;
+  constexpr std::size_t bulk_size = 5;
 
   // Prepare data
   for (int i = 0; i < 10; ++i) { EXPECT_TRUE(queue.enqueue(i)); }
 
   // Bulk dequeue
   std::array<int, bulk_size> buffer;
-  size_t dequeued = queue.dequeue_bulk(std::span{buffer});
+  std::size_t dequeued = queue.dequeue_bulk(std::span{buffer});
 
   EXPECT_EQ(dequeued, bulk_size);
   EXPECT_EQ(queue.size(), 10 - bulk_size);
 
   // Verify dequeue order
-  for (size_t i = 0; i < bulk_size; ++i) { EXPECT_EQ(buffer[i], static_cast<int>(i)); }
+  for (std::size_t i = 0; i < bulk_size; ++i) { EXPECT_EQ(buffer[i], static_cast<int>(i)); }
 
   EXPECT_EQ(queue.size(), 5);
 }
@@ -117,7 +124,7 @@ TEST(DefaultQueueTest, BulkDequeuePartial) {
   EXPECT_TRUE(queue.enqueue(3));
 
   std::array<int, 5> buffer;
-  size_t dequeued = queue.dequeue_bulk(std::span{buffer});
+  std::size_t dequeued = queue.dequeue_bulk(std::span{buffer});
 
   EXPECT_EQ(dequeued, 3);
   EXPECT_TRUE(queue.empty());
@@ -136,7 +143,7 @@ TEST(DefaultQueueTest, DequeueFromEmpty) {
   EXPECT_EQ(value, 42);  // Value should not be modified
 
   std::array<int, 5> buffer;
-  size_t dequeued = queue.dequeue_bulk(std::span{buffer});
+  std::size_t dequeued = queue.dequeue_bulk(std::span{buffer});
   EXPECT_EQ(dequeued, 0);
 }
 
@@ -228,10 +235,9 @@ TEST_F(DefaultQueueConcurrencyTest, MultipleProducersMultipleConsumers) {
 
   // Start consumers
   std::vector<int> consumed_items(total_items, 0);
-  std::mutex items_mutex;
 
   for (int c = 0; c < num_consumers; ++c) {
-    consumers.emplace_back([this, &consumed_items, &items_mutex, &total_items] {
+    consumers.emplace_back([this, &consumed_items, &total_items] {
       int value;
       while (consumed_count < total_items) {
         if (queue.dequeue(value)) {
@@ -296,7 +302,7 @@ TEST_F(DefaultQueueConcurrencyTest, ConcurrentBulkOperations) {
         if (dis(gen) == 1) {
           // Bulk dequeue
           std::array<int, bulk_size> buffer;
-          size_t count = queue.dequeue_bulk(std::span{buffer});
+          std::size_t count = queue.dequeue_bulk(std::span{buffer});
           total_consumed += count;
         } else {
           // Single dequeue

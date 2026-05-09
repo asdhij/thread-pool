@@ -56,11 +56,27 @@ The implementation favors `noexcept` operations and clearly defines where hooks 
 
 ### Prerequisites
 
-- C++23-compatible compiler (GCC 13+, Clang 16+, MSVC 2022 17.8+).
-- CMake 3.28+ (for building).
+- C++23-compatible compiler (GCC 15+, Clang 17+, MSVC 19.36+(Visual Studio 2022 17.6+)).
+- CMake 3.30+ (for building).
 - A CMake generator that supports C++20 modules, such as **Ninja** (Visual Studio and Unix Makefiles may have issues with module dependencies in some versions).
 
 ### Integration methods
+
+> **Important:** Because this library uses `import std`, you must enable CMake’s experimental `import std` support *before* `CXX` is enabled (usually a `project()` call), otherwise you will get an error like:
+> `Experimental import std support not enabled when detecting toolchain; it must be set before CXX is enabled (usually a project() call)`.
+>
+> You can enable it in one of two ways:
+>
+> - **Include the helper script** (shipped in the repository) *once* in your top-level `CMakeLists.txt` *before* the first `project()` call:
+>   ```cmake
+>   include(path/to/thread-pool/cmake/SetupImportStd.cmake)
+>   ```
+>   This automatically sets the correct UUID for your CMake version.
+>
+> - **Set the variable manually** *before* the first `project()` call. Check the [CMake docs](https://github.com/Kitware/CMake/blob/master/Help/dev/experimental.rst#c-import-std-support) for the UUID that matches your exact CMake version, then use:
+>   ```cmake
+>   set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "<UUID for your CMake version>")
+>   ```
 
 #### 1. Add the repository as a submodule:
 ```bash
@@ -78,6 +94,7 @@ target_link_libraries(your-target PRIVATE thread-pool::thread-pool)
 git clone https://github.com/asdhij/thread-pool.git
 cd thread-pool
 cmake -B build -S . -DCMAKE_INSTALL_PREFIX=/usr/local -G Ninja
+cmake --build build
 cmake --install build  # Note: may need `sudo` for system directories
 ```
 - In your `CMakeLists.txt`:
@@ -178,7 +195,7 @@ The generated documentation will be located at `build/docs/html/index.html`. Ope
     - `get_thread_allocator`
   - [Destructor](docs/en-US/thread_pool.md#destructor)
 
-- [AffinityThreadPool](docs/en-US/affinity_thread_pool.md)
+- [AffinityThreadPool](docs/en-US/affinity_thread_pool.md) (template)
   - [Constructors](docs/en-US/affinity_thread_pool.md#constructor)
   - [Primary methods](docs/en-US/affinity_thread_pool.md#primary-api)
     - `start`
